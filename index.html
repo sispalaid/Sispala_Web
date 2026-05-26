@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CCTV Monitoring Center - NVR Mode</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.7/hls.min.js"></script>
+  <style>
+    /* CSS LAMA TETAP DIPAKAI */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #111; color: white; font-family: 'Segoe UI', Arial, sans-serif; padding: 20px; }
+    h1 { text-align: center; margin-bottom: 20px; font-weight: 300; }
+
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 15px;
+      max-width: 1300px; margin: 0 auto;
+    }
+
+    .cam-cell {
+      background: #000; border-radius: 12px; overflow: hidden;
+      border: 1px solid #333; position: relative;
+    }
+
+    video { width: 100%; display: block; aspect-ratio: 16/9; background: #000; }
+
+    .controls {
+      background: rgba(20, 20, 20, 0.9);
+      padding: 10px; display: flex; flex-direction: column; gap: 8px;
+    }
+
+    .btn-group { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+
+    button {
+      background: #333; color: white; border: none; padding: 6px 10px;
+      border-radius: 4px; cursor: pointer; font-size: 12px; transition: 0.2s;
+    }
+
+    button:hover { background: #555; }
+    .btn-play { background: #2ecc71; }
+    .btn-live { background: #e74c3c; font-weight: bold; }
+
+    /* --- PANEL BARU: PLAYBACK HISTORY --- */
+    .playback-panel {
+      max-width: 1300px; margin: 30px auto;
+      background: #1e1e1e; padding: 20px; border-radius: 12px;
+      border: 1px solid #3498db;
+    }
+
+    .playback-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px;
+    }
+
+    .playback-container {
+      display: flex; gap: 20px; flex-wrap: wrap;
+    }
+
+    .playback-video-wrapper { flex: 2; min-width: 300px; }
+    .playback-list-wrapper { flex: 1; min-width: 250px; }
+
+    select, .btn-refresh {
+      background: #333; color: white; border: 1px solid #444;
+      padding: 8px; border-radius: 4px; width: 100%; margin-bottom: 10px;
+    }
+
+    .file-list {
+      max-height: 300px; overflow-y: auto; background: #111;
+      border-radius: 4px; padding: 5px;
+    }
+
+    .file-item {
+      padding: 8px; border-bottom: 1px solid #222; cursor: pointer;
+      font-size: 13px; transition: 0.2s;
+    }
+
+    .file-item:hover { background: #3498db; }
+
+    /* PANEL ALARM TETAP */
+    .alarm-panel {
+      max-width: 1300px; margin: 30px auto 0;
+      background: #1e1e1e; padding: 20px; border-radius: 12px;
+      border: 2px solid #c0392b; text-align: center;
+    }
+    .btn-alarm { background: #c0392b; color: white; padding: 15px 40px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; }
+    .btn-alarm.active { animation: blink 0.8s infinite; }
+    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+
+    @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<h1>CCTV Monitoring Center</h1>
+
+<div class="grid" id="video-grid"></div>
+
+<div class="playback-panel">
+  <div class="playback-header">
+    <h3 style="color: #3498db;">RECORDING PLAYBACK (NVR)</h3>
+    <span id="playing-now" style="font-size: 12px; color: #aaa;">Pilih file untuk diputar</span>
+  </div>
+  
+  <div class="playback-container">
+    <div class="playback-video-wrapper">
+      <video id="historyPlayer" controls>
+        <source src="" type="video/mp4">
+      </video>
+    </div>
+    
+    <div class="playback-list-wrapper">
+      <label style="font-size: 12px; color: #aaa;">Pilih Kamera:</label>
+      <select id="camSelect" onchange="fetchRecordings()">
+        <option value="cam1">CAM 01 - Pak Ramelan</option>
+        <option value="cam2">CAM 02 - Tengah 1</option>
+        <option value="cam3">CAM 03 - Tengah 2</option>
+        <option value="cam4">CAM 04 - Pak RT</option>
+      </select>
+      
+      <button class="btn-refresh" onclick="fetchRecordings()">Refresh Daftar File</button>
+      
+      <div class="file-list" id="fileList">
+        <div style="padding:10px; color:#555;">Memuat rekaman...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="alarm-panel">
+  <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM DI SERVER</button>
+</div>
+
+<script>
+  const streams = [
+    { id: 1, name: 'Pak Ramelan' },
+    { id: 2, name: 'Tengah 1' },
+    { id: 3, name: 'Tengah 2' },
+    { id: 4, name: 'Pak RT' }
+  ];
+
+  // --- INISIALISASI LIVE STREAMS ---
+  const grid = document.getElementById('video-grid');
+  streams.forEach(stream => {
+    grid.innerHTML += `
+      <div class="cam-cell">
+        <div class="status-tag" style="position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.6); padding:2px 8px; font-size:10px;">LIVE: CAM 0${stream.id}</div>
+        <video id="video-${stream.id}" muted playsinline></video>
+        <div class="controls">
+          <div class="btn-group">
+            <button class="btn-live" onclick="goLive(${stream.id})">LIVE</button>
+            <button class="btn-play" onclick="playVideo(${stream.id})">Play</button>
+            <button onclick="pauseVideo(${stream.id})">Pause</button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  streams.forEach(stream => {
+    const video = document.getElementById(`video-${stream.id}`);
+    const url = `./Streams/cam${stream.id}/index.m3u8`;
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(()=>null));
+    }
+  });
+
+  // --- LOGIKA PLAYBACK (NVR) ---
+  const historyPlayer = document.getElementById('historyPlayer');
+  const fileListDiv = document.getElementById('fileList');
+  const playingNowSpan = document.getElementById('playing-now');
+
+  async function fetchRecordings() {
+    const cam = document.getElementById('camSelect').value;
+    fileListDiv.innerHTML = '<div style="padding:10px;">Searching...</div>';
+
+    try {
+      const response = await fetch(`/api/recordings/${cam}`);
+      const files = await response.json();
+      
+      fileListDiv.innerHTML = '';
+      if (files.length === 0) {
+        fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman ditemukan.</div>';
+        return;
+      }
+
+      files.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.innerText = `🎥 ${file}`;
+        item.onclick = () => playArchive(cam, file);
+        fileListDiv.appendChild(item);
+      });
+    } catch (err) {
+      fileListDiv.innerHTML = '<div style="padding:10px; color:red;">Gagal memuat daftar.</div>';
+    }
+  }
+
+  function playArchive(cam, filename) {
+    const videoPath = `/archive/${cam}/${filename}`;
+    historyPlayer.src = videoPath;
+    historyPlayer.play();
+    playingNowSpan.innerText = `Memutar: ${cam} - ${filename}`;
+    playingNowSpan.style.color = "#3498db";
+  }
+
+  // --- FUNGSI ALARM ---
+  function toggleAlarm() {
+    fetch('/trigger-alarm')
+      .then(r => r.json())
+      .then(data => {
+        const btn = document.getElementById('alarmToggle');
+        btn.classList.add('active');
+        btn.innerText = "ALARM AKTIF!";
+        setTimeout(() => {
+          btn.classList.remove('active');
+          btn.innerText = "BUNYIKAN ALARM DI SERVER";
+        }, 5000);
+      });
+  }
+
+  // --- FUNGSI HELPER VIDEO ---
+  function playVideo(id) { document.getElementById(`video-${id}`).play(); }
+  function pauseVideo(id) { document.getElementById(`video-${id}`).pause(); }
+  function goLive(id) { 
+    const v = document.getElementById(`video-${id}`); 
+    v.currentTime = v.duration; 
+    v.play(); 
+  }
+
+  // Muat daftar rekaman pertama kali saat halaman dibuka
+  window.onload = fetchRecordings;
+
+</script>
+</body>
+</html>
