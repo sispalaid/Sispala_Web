@@ -1,67 +1,49 @@
 const express = require('express');
-const { exec } = require('child_process');
-const path = require('path');
-const fs = require('fs'); // Ditambahkan untuk membaca folder rekaman
 const app = express();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
+const fs = require('fs');
+const path = require('path');
 
-// 1. Middleware untuk file statis Dashboard (HTML, JS, CSS)
+// --- SETUP STATIC FILES ---
 app.use(express.static(__dirname));
 
-// 2. Middleware untuk akses file Video Rekaman agar bisa diputar di browser
-// Contoh akses: http://localhost:8000/archive/cam1/2026-05-26_00-15.mp4
-app.use('/archive', express.static(path.join(__dirname, 'Rekaman')));
-
-/**
- * API: Mengambil daftar file rekaman berdasarkan ID kamera
- */
+// --- API: Ambil Daftar Rekaman ---
 app.get('/api/recordings/:cam', (req, res) => {
     const cam = req.params.cam;
-    const directoryPath = path.join(__dirname, 'Rekaman', cam);
-
-    // Cek apakah folder kamera ada
-    if (!fs.existsSync(directoryPath)) {
-        return res.status(404).json({ message: `Folder rekaman untuk ${cam} tidak ditemukan.` });
-    }
-
-    fs.readdir(directoryPath, (err, files) => {
-        if (err) {
-            console.error("Gagal membaca folder:", err);
-            return res.status(500).json({ message: "Gagal membaca daftar file." });
-        }
-
-        // Filter hanya file .mp4 dan urutkan dari yang terbaru (reverse sort)
-        const mp4Files = files
-            .filter(file => file.endsWith('.mp4'))
-            .sort()
-            .reverse();
-
-        res.json(mp4Files);
+    const dir = path.join(__dirname, 'Rekaman', cam);
+    
+    if (!fs.existsSync(dir)) return res.json([]);
+    
+    fs.readdir(dir, (err, files) => {
+        if (err) return res.json([]);
+        // Urutkan dari yang terbaru
+        const sorted = files.filter(f => f.endsWith('.mp4')).sort().reverse();
+        res.json(sorted);
     });
 });
 
-/**
- * API: Memicu alarm fisik (ffplay)
- */
+// --- API: Trigger Alarm (Mock) ---
 app.get('/trigger-alarm', (req, res) => {
-    console.log("Instruksi diterima: Membunyikan alarm selama 5 detik...");
-    const audioFile = "./Alarm.mpeg";
-    const command = `ffplay -nodisp -autoexit -t 5 "${audioFile}"`;
-
-    exec(command, (err) => {
-        if (err) {
-            console.error("Gagal memutar audio. Pastikan FFmpeg terinstall di PATH.");
-        } else {
-            console.log("Alarm selesai diputar.");
-        }
-    });
-
-    res.json({ status: "Alarm dipicu selama 5 detik!" });
+    console.log("Alarm dipicu oleh user!");
+    // Tambahkan perintah eksekusi buzzer di sini jika ada
+    res.json({ status: "Alarm Active" });
 });
 
-// Menjalankan server
+// --- SOCKET.IO: Jembatan Data AI ---
+io.on('connection', (socket) => {
+    console.log('Client/Detector terhubung ke Socket.io');
+
+    // Menerima data koordinat dari detector.py
+    socket.on('detection', (payload) => {
+        // Payload diharapkan berisi: { cam: 'cam1', boxes: [[x1, y1, x2, y2, label], ...] }
+        // Meneruskan ke semua browser yang sedang membuka dashboard
+        io.emit('update-overlay', payload);
+    });
+});
+
+// --- START SERVER ---
 const PORT = 8000;
-app.listen(PORT, () => {
-    console.log("---------------------------------------------------");
-    console.log(`Server NVR Berjalan di http://localhost:${PORT}`);
-    console.log("---------------------------------------------------");
+http.listen(PORT, () => {
+    console.log(`CCTV Monitoring Server berjalan di http://localhost:${PORT}`);
 });
