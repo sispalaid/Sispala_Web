@@ -1,0 +1,117 @@
+ssh -p 22 sispala@10.18.13.176 (PowerShell) — Melakukan koneksi SSH ke server Arch Linux Anda.
+
+sudo lspci -nnk — Memeriksa daftar perangkat PCI beserta kernel driver dan modulnya.
+
+sudo lspci -vvvxxx — Melihat detail bus PCI secara mendalam (verbose level maksimum beserta hex dump).
+
+ip link — Memeriksa status interface jaringan (lo, enp5s0, wlp4s1, tailscale0).
+
+sudo nano /etc/NetworkManager/conf.d/powersave.conf — Mengedit konfigurasi manajemen daya NetworkManager.
+
+sudo iw dev wlp4s1 set power_save off — Mencoba mematikan fitur power saving Wi-Fi (gagal karena perintah iw belum terinstall).
+
+sudo iwconfig wlp4s1 power on — Mencoba alternatif pengaturan daya wireless menggunakan iwconfig (gagal).
+
+iw — Memeriksa ketersediaan perintah iw.
+
+sudo pacman -S iw — Menginstall paket iw via manajer paket Arch.
+
+sudo iw dev wlp4s1 set power_save off — Mematikan power saving Wi-Fi setelah paket iw berhasil dipasang.
+
+sudo /etc/modprobe.d/ath5kenc.conf — Salah ketik (mencoba mengeksekusi file konfigurasi sebagai perintah).
+
+sudo nano /etc/modprobe.d/ath5kenc.conf — Mengedit file konfigurasi untuk driver wireless Qualcomm Atheros (ath5k).
+
+sudo dmesg | grep iwlwifi — Memeriksa log kernel terkait driver Wi-Fi Intel.
+
+lspci -knnd ::0280 — Memeriksa spesifik modul/driver kontroler jaringan nirkabel.
+
+sudo lspci -vvvxxx — Memeriksa ulang informasi PCI secara mendalam.
+
+sudo iw reg set ID — Mengatur domain regulasi wireless ke Indonesia (ID), yang langsung memicu sistem melakukan reboot.
+
+Sesi 2: Percobaan Ekspor YOLO (Sebelum Perbaikan Virtual Environment)
+17. ssh -p 22 sispala@10.18.13.176 (PowerShell) — Login kembali setelah sistem selesai reboot.
+18. ssh -p 22 sispala@10.18.13.176 (PowerShell) — Melakukan login ulang karena koneksi terputus.
+19. source ~/.bashrc — Me-reload konfigurasi shell Bash Anda.
+20. echo "Hello from my remote Arch machine!" | copy — Mencoba melakukan piping output string ke perintah copy (error).
+21. yolo export model=yolo26n.pt format=engine — Mencoba ekspor model YOLO (gagal karena belum masuk ke virtual environment python).
+22. source ~/.bashrc
+23. source ~/sispala-ai/bin/activate — Mengaktifkan virtual environment python sispala-ai.
+24. yolo export model=yolo26n.pt format=engine — Menjalankan ekspor model di dalam venv (gagal di tengah jalan karena modul tensorrt tidak ditemukan).
+25. pip install tensorrt==8.6.1 — Mencoba menginstall TensorRT versi 8.6.1 (gagal akibat kegagalan resolusi nama pypi/koneksi internet).
+26. pip install tensorrt==8.6.1 — Mengulangi perintah instalasi TensorRT yang sama.
+
+Sesi 3: Pembersihan KDE Baloo & Pembuatan Venv Python Baru
+27. ssh -p 22 sispala@10.18.13.176 (PowerShell) — Melakukan koneksi ulang setelah koneksi terputus.
+28. ncdu /home — Memeriksa penggunaan ruang penyimpanan pada direktori /home.
+29. ncdu /home — Mengulangi pemeriksaan ruang penyimpanan.
+30. kbuildsycoca6 --noincremental — Membangun ulang cache konfigurasi sistem KDE Plasma 6.
+31. sudo pacman -Rns baloo — Mencoba menghapus indexer file Baloo (gagal karena dibutuhkan oleh paket plasma-desktop).
+32. balooctl6 disable — Menonaktifkan layanan File Indexer Baloo.
+33. balooctl6 purge — Membersihkan database indeks file milik Baloo.
+34. pkill -9 baloo_process — Mematikan paksa sisa proses Baloo yang masih berjalan.
+35. balooctl6 suspend — Menangguhkan aktivitas Baloo.
+36. balooctl6 disable — Memastikan kembali layanan Baloo telah dinonaktifkan.
+37. virtualenv -p 3.10 sispala-ai — Membuat ulang virtual environment python bersih menggunakan interpreter Python 3.10.
+38. source ~/sispala-ai/bin/activate — Mengaktifkan environment baru tersebut.
+39. pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu118 — Mencoba menginstall PyTorch CUDA 11.8 (dibatalkan/diinterupsi oleh Anda).
+40. history — Menampilkan riwayat perintah shell (yang memicu cetakan baris riwayat panjang nomor 1–783).
+
+Sesi 4: Pengalihan Folder Temp & Instalasi PyTorch Sukses
+41. export TMPDIR=~/pip_tmp — Mengalihkan folder temporary pip ke direktori lokal Anda (solusi praktis menghindari isu /tmp penuh saat install package berukuran besar).
+42. ls ~/pip_tmp — Melihat isi folder temporary pip.
+43. ls -la ~/pip_tmp — Melihat detail izin direktori temporary.
+44. ls -la ~/ — Melihat daftar file pada direktori utama user.
+45. pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu118 — Menjalankan kembali instalasi PyTorch (kali ini berhasil diunduh hingga selesai).
+46. sudo reboot — Memulai ulang sistem.
+
+Sesi 5 & 6: Pengecekan Hardware Driver & Ekspor Sukses YOLO (FP32 & INT8)
+47. ssh -p 22 sispala@10.18.13.176 (PowerShell) — Login kembali pasca-reboot.
+48. sudo reboot — Melakukan reboot ulang secara manual.
+49. ssh -p 22 sispala@10.18.13.176 (PowerShell) — Login kembali.
+50. vainfo — Memeriksa status akselerasi video hardware API (VA-API) pada GPU terintegrasi Intel Ivybridge.
+51. lspci -k — Memeriksa driver kernel yang aktif pada GPU Intel (i915) dan NVIDIA (nvidia).
+52. nvidia-smi — Memeriksa status dan temperatur kartu grafis NVIDIA GeForce GT 1030.
+53. sudo nvtop — Membuka monitor performa dan task GPU (NVIDIA & Intel).
+54. source ~/sispala-ai/bin/activate — Mengaktifkan venv python.
+55. pip install tensorrt==8.5.3 — Mencoba menginstall TensorRT versi tertentu (error karena tidak ditemukan di PyPI).
+56. pip install tensorrt==8.5.3.1 — Mencoba versi perbaikan (dibatalkan di tengah proses download).
+57. pip install tensorrt==8.6.1 — Mencoba menginstall versi 8.6.1 (error saat kompilasi roda/wheel build).
+58. pip install tensorrt==8.5.3.1 — Menjalankan kembali instalasi versi 8.5.3.1 (kali ini berhasil).
+59. yolo export model=yolo26n.pt format=engine — Mencoba ekspor YOLO (gagal karena package utama ultralytics belum dipasang di environment ini).
+60. pip install -U ultralytics — Memasang framework Ultralytics YOLO beserta seluruh library pelengkapnya (opencv-python, scipy, matplotlib, dll).
+61. yolo export model=yolo26n.pt format=engine — Berhasil mengekspor model YOLO ke format TensorRT FP32 (yolo26n.engine).
+62. yolo export model=yolo26n.pt format=engine int8=true — Berhasil mengekspor model ke format TensorRT INT8 menggunakan kalibrasi dari dataset default coco8.yaml.
+
+Sesi 7: Instalasi Monitor Sistem GUI & Pengujian Pertama Inferensi YOLO
+63. ssh -p 22 sispala@10.18.13.176 (PowerShell) — Login kembali setelah putus koneksi.
+64. sudo pacman -S plasma-systemmoniotr — Salah ketik saat instalasi paket sistem monitor.
+65. sudo pacman -S plasma-systemmonitor — Menginstall Plasma System Monitor untuk KDE.
+66. sudo pacman -S kscreen — Menginstall tool manajemen layar KDE (KScreen).
+67. kbuildsycoca6 — Menyegarkan cache sistem menu aplikasi KDE.
+68. source ~/sispala-ai/bin/activate
+69. ls — Melihat daftar berkas di direktori home.
+70. python yolo_detect.py --model=yolo26n.engine --source=test.mp4 — Menjalankan skrip inferensi deteksi Anda (dihentikan paksa menggunakan Ctrl+C saat mengimpor library OpenCV/Numpy).
+71. exit — Keluar dari shell.
+
+Sesi 8: Penyelesaian Isu Tautan Library Driver (libnvrtc.so)
+72. ssh -p 22 sispala@10.18.13.176 (PowerShell) — Melakukan SSH ulang.
+73. source ~/sispala-ai/bin/activate
+74. export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(find /home/sispala/sispala-ai -name "*.so*" | grep nvidia | xargs dirname | sort -u | paste -d ":" -s -) — Menambahkan path shared object modul NVIDIA internal venv ke variabel lingkungan shell.
+75. ncdu /home — Memeriksa sisa kapasitas direktori.
+76. pip install nvidia-cuda-nvrtc-cu11 — Memastikan status library runtime kompiler CUDA NVRTC.
+77. pip install pynvrtc — Mencoba instalasi package tambahan pynvrtc (error/tidak ditemukan).
+78. python yolo_detect.py --model=yolo26n.engine --source=test.mp4 — Menjalankan skrip deteksi, sistem memunculkan error karena tidak dapat menemukan library libnvrtc.so.
+79. find ~/sispala-ai/lib/python3.10/site-packages/nvidia/cuda_nvrtc/lib/ -name "libnvrtc.so*" — Melakukan pencarian lokasi file library nvrtc asli (menemukan file bernama libnvrtc.so.11.2).
+80. cd ~/sispala-ai/lib/python3.10/site-packages/nvidia/cuda_nvrtc/lib/ — Berpindah direktori ke lokasi file library tersebut.
+81. cd ~/sispala-ai/lib/python3.10/site-packages/nvidia/cuda_nvrtc/lib/ — Perintah navigasi direktori yang sama.
+82. cd ~ — Kembali ke folder utama user.
+83. cd ~/sispala-ai/lib/python3.10/site-packages/nvidia/cuda_nvrtc/lib/ — Masuk kembali ke direktori library CUDA nvrtc.
+84. ls — Melihat isi berkas di dalam direktori tersebut.
+85. ln -s libnvrtc.so.11.2 libnvrtc.so — Membuat tautan simbolis (symlink) agar file libnvrtc.so mengarah ke berkas real libnvrtc.so.11.2 guna menyelesaikan masalah dependensi OpenCV/cuDNN.
+86. ls — Meninjau hasil pembuatan symlink.
+87. ln -s libnvrtc.so.11.2 libnvrtc.so — Mencoba mengulangi pembuatan symlink yang sama (muncul pesan error karena file sudah terbentuk).
+88. cd !~ — Salah ketik ekspansi event bash shell.
+89. cd ~ — Kembali ke folder utama user.
+90. export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(python -c "import os, nvidia; print(':'.join([os.path.join(r, 'lib') for r, d, f in os.walk(os.path.dirname(nvidia.__file__)) if 'lib' in d]))") — Menggunakan perintah Python satu baris untuk mencari semua subfolder bernama lib di dalam modul nvidia secara rekursif, lalu menyatukannya dengan pemisah titik dua (:) ke dalam variabel LD_LIBRARY_PATH.
