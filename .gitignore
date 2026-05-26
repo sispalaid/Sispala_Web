@@ -1,0 +1,5 @@
+node_modules/
+Rekaman/
+Streams/
+*.log
+*.txt
