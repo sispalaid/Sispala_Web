@@ -1,0 +1,15 @@
+[Unit]
+Description=Sispala CCTV Stack (Server + Cams)
+After=network.target
+
+[Service]
+Type=simple
+User=sispala
+WorkingDirectory=/home/sispala/myversion/Sispala_Web
+ExecStart=/bin/bash /home/sispala/myversion/Sispala_Web/systemd/run_all.sh
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

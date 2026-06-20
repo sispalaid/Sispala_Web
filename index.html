@@ -1,0 +1,1739 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SISPALA WEB CCTV MONITORING</title>
+  
+  <link rel="icon" type="image/png" href="./Logo_Sispala.png">
+  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Space+Grotesk:wght@400;600;700&display=swap" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.7/hls.min.js"></script>
+  <style>
+    :root {
+      --bg-1: #0c111b;
+      --bg-2: #141a26;
+      --panel-1: #111827;
+      --panel-2: #0d121c;
+      --ink-1: #e7edf6;
+      --ink-2: #9fb0c7;
+      --accent-1: #2ec4b6;
+      --accent-2: #ff9f1c;
+      --accent-3: #e71d36;
+      --stroke-1: #1f2a3b;
+      --stroke-2: #2b3a52;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background:
+        radial-gradient(circle at 20% 20%, rgba(46, 196, 182, 0.08), transparent 35%),
+        radial-gradient(circle at 80% 10%, rgba(255, 159, 28, 0.08), transparent 35%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      color: var(--ink-1);
+      font-family: 'Space Grotesk', 'IBM Plex Sans', sans-serif;
+      padding: 24px;
+      min-height: 100vh;
+      position: relative;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 24px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #dbe7ff;
+      text-transform: uppercase;
+    }
+
+    .project-header {
+      max-width: 1300px; margin: 0 auto 30px; text-align: center;
+      position: relative;
+    }
+    
+    /* GAYA LOGOUT KANAN ATAS */
+    .top-right-logout {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 10;
+    }
+    .top-right-logout button {
+      background: linear-gradient(135deg, #e71d36, #b2182b);
+      color: #fff;
+      padding: 10px 20px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(231, 29, 54, 0.3);
+      transition: transform 0.2s;
+    }
+    .top-right-logout button:hover {
+      transform: scale(1.05);
+    }
+
+    .brand-container {
+      display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 25px;
+      padding-right: 120px;
+    }
+    .univ-logo {
+      height: 115px; width: auto; filter: drop-shadow(0 0 12px rgba(46, 196, 182, 0.4));
+    }
+    .title-area {
+      text-align: left;
+    }
+    .title-area h1 {
+      margin-bottom: 5px; text-align: left; font-size: 26px; line-height: 1.2;
+    }
+    .team-by {
+      color: var(--accent-1); font-weight: 600; font-size: 14px; letter-spacing: 2px; text-transform: uppercase;
+    }
+    
+    /* GAYA PANEL MANAGEMENT KHUSUS ROLE SUPERADMIN */
+    .superadmin-panel {
+      max-width: 1300px; margin: 25px auto 0;
+      background: linear-gradient(180deg, #151d2a 0%, #0e141f 100%);
+      padding: 22px; border-radius: 16px;
+      border: 1px solid var(--accent-1);
+      box-shadow: 0 18px 40px rgba(46, 196, 182, 0.15);
+      display: none;
+      animation: rise 0.6s ease both;
+    }
+    .superadmin-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1.5fr; gap: 20px; margin-top: 15px;
+    }
+    .superadmin-card {
+      background: #0c111a; border: 1px solid var(--stroke-1); border-radius: 12px; padding: 16px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .superadmin-card input, .superadmin-card select {
+      width: 100%; padding: 10px; margin: 8px 0; border-radius: 8px;
+      border: 1px solid var(--stroke-2); background: #121722; color: white; font-size: 12px;
+    }
+    .log-table-wrapper {
+      max-height: 250px; overflow-y: auto; border: 1px solid var(--stroke-1); border-radius: 8px; background: #080c14;
+    }
+    .log-table {
+      width: 100%; border-collapse: collapse; font-size: 11px; text-align: left;
+    }
+    .log-table th, .log-table td {
+      padding: 8px 10px; border-bottom: 1px solid #141a26;
+    }
+    .log-table th { background: #111622; color: var(--accent-1); font-weight: 600; text-transform: uppercase; }
+    .badge-login { color: #2ecc71; font-weight: bold; }
+    .badge-logout { color: #e74c3c; font-weight: bold; }
+
+    .meta-panel {
+      background: linear-gradient(180deg, rgba(17, 24, 39, 0.6) 0%, rgba(13, 18, 28, 0.6) 100%);
+      border: 1px solid var(--stroke-1); padding: 24px; border-radius: 14px; width: 100%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      text-align: center;
+      max-width: 1300px; margin: 40px auto 0;
+    }
+    .meta-section {
+      margin-bottom: 20px;
+    }
+    .meta-section:last-child {
+      margin-bottom: 0;
+    }
+    .meta-label {
+      font-size: 11px; color: var(--ink-2); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; font-weight: 600;
+    }
+    .meta-value {
+      font-size: 13px; color: var(--ink-1); line-height: 1.5;
+    }
+    
+    .member-row {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+    .member-item {
+      font-size: 13px;
+      color: var(--ink-1);
+      white-space: nowrap;
+    }
+
+    .project-footer {
+      max-width: 1300px; margin: 60px auto 10px; padding-top: 25px; border-top: 1px solid var(--stroke-1); text-align: center;
+    }
+    .footer-content {
+      display: flex; justify-content: space-between; gap: 30px; flex-wrap: wrap; text-align: left;
+    }
+    .footer-section {
+      flex: 1; min-width: 250px;
+    }
+    .footer-text-important {
+      font-size: 14px; color: var(--accent-2); margin-top: 4px; font-weight: 600;
+    }
+    .copyright {
+      margin-top: 40px; font-size: 11px; color: #4b586c; letter-spacing: 0.5px;
+    }
+
+    .storage-panel {
+      max-width: 1300px; margin: 30px auto 0;
+      background: linear-gradient(180deg, var(--panel-1) 0%, var(--panel-2) 100%);
+      padding: 20px 22px; border-radius: 16px;
+      border: 1px solid var(--stroke-1);
+      box-shadow: 0 18px 40px rgba(3, 6, 12, 0.5);
+      animation: rise 0.6s ease both;
+    }
+
+    .storage-header {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 10px;
+    }
+
+    .storage-title {
+      font-size: 12px; color: #9fd9ff; letter-spacing: 2px;
+      text-transform: uppercase; font-weight: 600;
+    }
+    .storage-updated { font-size: 11px; color: var(--ink-2); }
+
+    .storage-bar {
+      width: 100%; height: 12px; background: #0b111b; border: 1px solid var(--stroke-2);
+      border-radius: 999px; overflow: hidden; margin-bottom: 12px;
+    }
+
+    .storage-bar-fill {
+      height: 100%; width: 0%; background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c);
+      transition: width 0.6s ease;
+    }
+
+    .storage-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px 16px;
+      font-size: 12px; color: #c7d0dd;
+    }
+
+    .storage-grid span { color: #9fd9ff; }
+
+    .storage-warnings {
+      font-size: 11px; color: #f5b041; margin: 4px 0 10px;
+    }
+
+    .storage-disks {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px; margin-top: 14px;
+    }
+
+    .storage-disk {
+      background: #0d131f; border: 1px solid #1f2a3b; border-radius: 12px;
+      padding: 12px 14px; font-size: 11px; color: #c7d0dd;
+    }
+
+    .storage-disk-title { font-size: 12px; color: #9bc1ff; margin-bottom: 6px; }
+    .storage-disk-row { display: flex; justify-content: space-between; gap: 8px; }
+    .storage-disk-row span { color: #8fb3ff; }
+
+    .grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 18px;
+      max-width: 1300px; margin: 0 auto;
+    }
+
+    .cam-cell {
+      background: #05070c; border-radius: 16px; overflow: hidden;
+      border: 1px solid var(--stroke-1); position: relative;
+      box-shadow: 0 16px 35px rgba(0, 0, 0, 0.45);
+      animation: rise 0.6s ease both;
+    }
+
+    .status-tag {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(10, 16, 26, 0.8);
+      border: 1px solid var(--stroke-2);
+      padding: 4px 10px; font-size: 10px; letter-spacing: 1px;
+      text-transform: uppercase; color: #9fd9ff;
+      border-radius: 999px;
+    }
+
+    video { width: 100%; display: block; aspect-ratio: 16/9; background: #000; }
+    .plyr__video-wrapper { background: #000; }
+
+    .controls {
+      background: rgba(8, 12, 18, 0.92);
+      padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 8px;
+      border-top: 1px solid var(--stroke-1);
+    }
+
+    .btn-group { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+
+    button {
+      background: #141c2a; color: #dbe7ff; border: 1px solid #223047; padding: 7px 12px;
+      border-radius: 10px; cursor: pointer; font-size: 12px; transition: 0.2s ease;
+      text-transform: uppercase; letter-spacing: 0.8px;
+    }
+
+    button:hover { background: #1a2334; border-color: #2b3a52; }
+    .btn-play { background: linear-gradient(135deg, #2ec4b6, #1a9a8f); border: none; color: #051017; }
+    .btn-live { background: linear-gradient(135deg, #e71d36, #ff6b6b); border: none; font-weight: 600; }
+
+    .mid-alarm-container {
+      max-width: 1300px;
+      margin: 25px auto 0;
+      text-align: center;
+      animation: rise 0.6s ease both;
+    }
+
+    .playback-panel {
+      max-width: 1300px; margin: 25px auto 32px;
+      background: linear-gradient(180deg, #101826 0%, #0c131f 100%);
+      padding: 22px; border-radius: 16px;
+      border: 1px solid #1f2a3b;
+      box-shadow: 0 18px 40px rgba(3, 6, 12, 0.45);
+      animation: rise 0.6s ease both;
+    }
+
+    .playback-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 16px; border-bottom: 1px solid #1f2a3b; padding-bottom: 12px;
+    }
+
+    .playback-actions { display: flex; gap: 8px; align-items: center; }
+    .btn-jump { background: linear-gradient(135deg, #3b82f6, #60a5fa); border: none; }
+
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.65);
+      display: none; align-items: center; justify-content: center; z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal {
+      width: min(760px, 92vw); background: #121621; border: 1px solid #24314a;
+      border-radius: 16px; padding: 18px 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .modal-title { font-size: 14px; color: #9bc1ff; letter-spacing: 1px; text-transform: uppercase; }
+    .modal-close { background: #2b2f3a; border: none; color: #cfd6e3; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+
+    .jump-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+    .jump-card { background: #0f141f; border: 1px solid #23314a; border-radius: 14px; padding: 14px; }
+    .jump-title { font-size: 12px; color: #9bc1ff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+
+    .calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .calendar-title { font-size: 13px; color: #d7deea; }
+    .calendar-nav { display: flex; gap: 6px; }
+    .calendar-nav button { background: #1c2330; border: 1px solid #2a3342; color: #d7deea; padding: 4px 8px; border-radius: 8px; }
+
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+    .calendar-day { font-size: 10px; color: #8b95a5; text-align: center; }
+    .calendar-date {
+      padding: 8px 0; text-align: center; border-radius: 8px; cursor: pointer;
+      background: #121a28; border: 1px solid transparent; color: #c7d0dd;
+    }
+    .calendar-date.available { border-color: #2d6cdf; color: #d7e6ff; }
+    .calendar-date.selected { background: #2d6cdf; color: #fff; }
+    .calendar-date.disabled { opacity: 0.35; cursor: default; }
+
+    .clock-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .clock-face {
+      width: 200px; height: 200px; border-radius: 50%; background: radial-gradient(circle, #111827 60%, #0b1018 100%);
+      border: 2px solid #24314a; position: relative;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+    }
+    .clock-center { width: 8px; height: 8px; background: #2d6cdf; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    .clock-hand {
+      position: absolute; top: 50%; left: 50%; transform-origin: 0% 50%;
+      height: 1px; background: #d7deea; opacity: 0.9; border-radius: 999px;
+      box-shadow: 0 0 6px rgba(46, 196, 182, 0.35);
+    }
+    .clock-hand.hour { width: 44px; height: 2px; }
+    .clock-hand.minute { width: 72px; }
+
+    .clock-number {
+      position: absolute; width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: #d7deea; cursor: pointer; background: #1b2332;
+      border: 1px solid transparent; user-select: none;
+    }
+    .clock-number:hover { border-color: #2d6cdf; }
+    .clock-number.active { background: #2d6cdf; color: #fff; }
+
+    .time-display { font-size: 16px; color: #d7deea; letter-spacing: 0.5px; }
+    .ampm-toggle { display: flex; gap: 6px; }
+    .ampm-toggle button { background: #1c2330; border: 1px solid #2a3342; color: #d7deea; padding: 4px 10px; border-radius: 8px; }
+    .ampm-toggle .active { background: #2d6cdf; border-color: #2d6cdf; }
+    .time-hint { font-size: 11px; color: #8b95a5; text-align: center; }
+    .time-inputs {
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+      margin-top: 6px;
+    }
+    .time-inputs input {
+      width: 56px; padding: 6px 8px; border-radius: 8px; border: 1px solid #2a3342;
+      background: #121a28; color: #dbe7ff; text-align: center; font-size: 12px;
+    }
+    .time-inputs button {
+      padding: 6px 10px; border-radius: 8px; font-size: 11px;
+      background: #2d6cdf; border: 1px solid #2d6cdf; color: #fff;
+    }
+
+    .playback-container {
+      display: flex; gap: 20px; flex-wrap: wrap;
+    }
+
+    .playback-video-wrapper { flex: 2; min-width: 300px; }
+    .playback-list-wrapper { flex: 1; min-width: 250px; }
+
+    select, .btn-refresh {
+      background: #121a28; color: #dbe7ff; border: 1px solid #223047;
+      padding: 10px; border-radius: 10px; width: 100%; margin-bottom: 10px;
+    }
+
+    .file-list {
+      max-height: 300px; overflow-y: auto; background: #0c111a;
+      border-radius: 12px; padding: 6px; border: 1px solid #1f2a3b;
+    }
+
+    .file-item {
+      padding: 10px; border-bottom: 1px solid #1b2536; cursor: pointer;
+      font-size: 12px; transition: 0.2s; color: #d7e2f2;
+    }
+
+    .file-item:hover { background: #1a2436; color: #9fd9ff; }
+    .file-item.selected { background: #1b2a44; border-color: #2d6cdf; color: #e7efff; }
+
+    .btn-alarm { background: linear-gradient(135deg, #e71d36, #ff6b6b); color: #fff; padding: 14px 40px; font-weight: 600; cursor: pointer; border: none; border-radius: 10px; width: min(400px, 90vw); }
+    .btn-alarm.active { animation: blink 0.8s infinite; }
+    @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+    @media (max-width: 1000px) {
+      .superadmin-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 800px) { 
+      .grid { grid-template-columns: 1fr; } 
+      .brand-container { flex-direction: column; gap: 10px; text-align: center; padding-right: 0; }
+      .title-area { text-align: center; }
+      .title-area h1 { text-align: center; font-size: 20px; }
+      .footer-content { flex-direction: column; gap: 20px; }
+      .top-right-logout { position: static; text-align: center; margin-bottom: 15px; }
+    }
+    /* Overlay Login */
+    #login-overlay {
+        position: fixed; inset: 0; background: var(--bg-1);
+        display: flex; align-items: center; justify-content: center; z-index: 9999;
+    }
+    .login-box {
+        background: var(--panel-1); padding: 10px; border-radius: 16px;
+        border: 1px solid var(--stroke-1); width: 350px; text-align: center;
+    }
+    .login-box input {
+        width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px;
+        border: 1px solid var(--stroke-2); background: #0d121c; color: white;
+    }
+    .btn-login {
+        width: 100%; background: var(--accent-1); color: #000; border: none;
+        padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;
+    }
+    #main-content { display: none; }
+  </style>
+</head>
+<body>
+<div id="login-overlay">
+  <div class="login-box">
+    <h2 style="margin-bottom:1px; color:var(--accent-1)">SISPALA LOGIN</h2>
+  <form onsubmit="event.preventDefault(); handleLogin();" class="login-box">
+    <input type="text" id="username" placeholder="Username" required>
+    <input type="password" id="password" placeholder="Password" required>
+    
+    <button type="submit" class="btn-login">Login</button> 
+    
+    <div id="login-error" style="color:red; font-size:12px; margin-top:10px;"></div>
+  </form>
+  </div>
+</div>
+
+<div id="main-content">
+
+<div class="top-right-logout">
+  <button id="logoutBtn" onclick="executeLogout()">🛑 LOGOUT</button>
+</div>
+
+<header class="project-header">
+  <div class="brand-container">
+    <img src="./Logo_UNS.png" alt="Logo Universitas" class="univ-logo">
+    <div class="title-area">
+      <h1>Optimalisasi Peran Aktif Masyarakat dalam Meningkatkan Keamanan Lingkungan melalui Teknologi Adaptif CCTV dan Alarm SOS di Desa Jaten, Kecamatan Karanganyar</h1>
+      <p class="team-by">By: SISPALA</p>
+    </div>
+  </div>
+</header>
+
+<div class="grid" id="video-grid"></div>
+
+<div class="mid-alarm-container">
+  <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM DI SERVER</button>
+</div>
+
+<div id="superadmin-panel" class="superadmin-panel">
+  <h3 style="color: var(--accent-1); border-bottom: 1px solid var(--stroke-1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 14px;">🛠️ Superadmin Management Console</h3>
+  <div class="superadmin-grid">
+    <div class="superadmin-card">
+      <h4 style="color: #9bc1ff; font-size: 12px; margin-bottom: 5px;">REGISTER NEW ACCOUNT</h4>
+      <form onsubmit="event.preventDefault(); createNewAccount();">
+        <input type="text" id="new-username" placeholder="New Username" required>
+        <input type="password" id="new-password" placeholder="New Password" required>
+        <select id="new-role" required>
+          <option value="" disabled selected>Select Role</option>
+          <option value="admin">Admin</option>
+          <option value="guest">Guest</option>
+        </select>
+        <button type="submit" style="width:100%; background: var(--accent-1); color:#000; font-weight:bold; margin-top:5px;">Create Account</button>
+      </form>
+      <div id="create-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
+    </div>
+
+    <div class="superadmin-card">
+      <h4 style="color: var(--accent-2); font-size: 12px; margin-bottom: 5px;">MODIFY OR DELETE EXISTING ACCOUNT</h4>
+      <form onsubmit="event.preventDefault(); modifyExistingAccount();">
+        <input type="text" id="edit-username" placeholder="Target Username" list="username-suggestions" onfocus="updateUsernameSuggestions()" required>
+        <datalist id="username-suggestions"></datalist>
+        <input type="password" id="edit-password" placeholder="New Password (Leave blank if unchanged)">
+        <select id="edit-role">
+          <option value="" selected>Change Role (Optional)</option>
+          <option value="superadmin">Superadmin</option>
+          <option value="admin">Admin</option>
+          <option value="guest">Guest</option>
+        </select>
+        <button type="submit" style="width:100%; background: var(--accent-2); color:#000; font-weight:bold; margin-top:5px;">Update Account</button>
+        <button type="button" onclick="deleteExistingAccount()" style="width:100%; background: var(--accent-3); color:#fff; font-weight:bold; margin-top:5px; border:none; padding:6px; cursor:pointer;">Delete Account</button>
+      </form>
+      <div id="modify-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
+    </div>
+    
+
+    <div class="superadmin-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <h4 style="color: #9bc1ff; font-size: 12px;">USER ACTIVITY LOGS</h4>
+        <button onclick="fetchSuperadminLogs()" style="font-size:10px; padding:3px 8px;">Refresh Logs</button>
+      </div>
+      <div class="log-table-wrapper">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="log-table-body">
+            <tr>
+              <td colspan="4" style="text-align:center; color:#555;">Memuat data log...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="playback-panel">
+  <div class="playback-header">
+    <h3 style="color: #3498db;">RECORDING PLAYBACK (NVR)</h3>
+    <div class="playback-actions">
+      <button class="btn-jump" onclick="openJumpModal()">Jump to Time</button>
+      <span id="playing-now" style="font-size: 12px; color: #aaa;">Pilih file untuk diputar</span>
+    </div>
+  </div>
+  
+  <div class="playback-container">
+    <div class="playback-video-wrapper">
+      <video id="historyPlayer" class="plyr">
+        <source src="" type="video/mp4">
+      </video>
+    </div>
+    
+    <div class="playback-list-wrapper">
+      <label style="font-size: 12px; color: #aaa;">Pilih Kamera:</label>
+      <select id="camSelect" onchange="fetchRecordings()">
+        <option value="cam1">CAM 01 - Pak Ramelan</option>
+        <option value="cam2">CAM 02 - Pak Yudho 1</option>
+        <option value="cam3">CAM 03 - Pak Yudho 2</option>
+        <option value="cam4">CAM 04 - Pak RT</option>
+      </select>
+      
+      <button class="btn-refresh" onclick="fetchRecordings()">Refresh Daftar File</button>
+      
+      <div class="file-list" id="fileList">
+        <div style="padding:10px; color:#555;">Memuat rekaman...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="jump-modal" class="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Jump To Time</div>
+      <button class="modal-close" onclick="closeJumpModal()">Close</button>
+    </div>
+    <div class="jump-layout">
+      <div class="jump-card">
+        <div class="jump-title">Calendar</div>
+        <div class="calendar-header">
+          <div id="calendar-title" class="calendar-title">-</div>
+          <div class="calendar-nav">
+            <button onclick="prevMonth()">Prev</button>
+            <button onclick="nextMonth()">Next</button>
+          </div>
+        </div>
+        <div class="calendar-grid" id="calendar-grid"></div>
+      </div>
+      <div class="jump-card">
+        <div class="jump-title">Time</div>
+        <div class="clock-wrap">
+          <div class="clock-face" id="clock-face">
+            <div id="clock-hour" class="clock-hand hour"></div>
+            <div id="clock-minute" class="clock-hand minute"></div>
+            <div class="clock-center"></div>
+          </div>
+          <div class="time-display" id="time-display">--:--</div>
+          <div class="ampm-toggle">
+            <button id="ampm-am" onclick="setMeridiem('AM')">AM</button>
+            <button id="ampm-pm" onclick="setMeridiem('PM')">PM</button>
+          </div>
+          <div class="time-inputs">
+            <input id="time-hour" type="number" min="1" max="12" placeholder="HH" />
+            <span>:</span>
+            <input id="time-minute" type="number" min="0" max="59" placeholder="MM" />
+            <span>:</span>
+            <input id="time-second" type="number" min="0" max="59" placeholder="SS" />
+            <button onclick="applyTimeInputs()">Set</button>
+          </div>
+          <div class="time-hint" id="jump-hint">Select a date, then tap hour.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="storage-panel">
+  <div class="storage-header">
+    <div class="storage-title">STORAGE PROJECTION</div>
+    <div id="storage-updated" class="storage-updated">Waiting for data...</div>
+  </div>
+  <div class="storage-bar">
+    <div id="storage-bar-fill" class="storage-bar-fill"></div>
+  </div>
+  <div id="storage-warnings" class="storage-warnings"></div>
+  <div class="storage-grid">
+    <div>Filesystem: <span id="stat-filesystem">-</span></div>
+    <div>Mount: <span id="stat-mount">-</span></div>
+    <div>Capacity: <span id="stat-capacity">-</span></div>
+    <div>Used: <span id="stat-used">-</span></div>
+    <div>Free: <span id="stat-free">-</span></div>
+    <div>Used %: <span id="stat-used-percent">-</span></div>
+    <div>Recordings Size: <span id="stat-recordings">-</span></div>
+    <div>Write Rate: <span id="stat-rate">-</span></div>
+    <div>ETA: <span id="stat-eta">-</span></div>
+  </div>
+  <div id="storage-disks" class="storage-disks"></div>
+  
+  <div style="margin-top: 20px; border-top: 1px solid var(--stroke-1); padding-top: 15px;">
+    <div style="font-size: 11px; color: #9fd9ff; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+      <span>AUTO-CLEANUP STATUS & LOGS</span>
+      <button onclick="fetchStorageCleanupLogs()" style="font-size: 9px; padding: 2px 6px; text-transform: none; letter-spacing: 0.5px;">Refresh Cleanup Logs</button>
+    </div>
+    <div id="storage-cleanup-log-container" style="background: #090e18; border: 1px solid var(--stroke-1); border-radius: 12px; padding: 12px; max-height: 180px; overflow-y: auto; text-align: left; margin: 0; display: flex; flex-direction: column; gap: 8px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);"></div>
+  </div>
+</div>
+
+<div id="system-logs-panel" class="storage-panel" style="display: none; margin-top: 30px; margin-bottom: 30px;">
+  <div class="storage-header" style="flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--stroke-1); padding-bottom: 12px; margin-bottom: 12px;">
+    <div class="storage-title">System & Process Logs</div>
+    <div class="playback-actions" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <select id="logSourceSelect" onchange="fetchSystemLogs()" style="width: auto; margin-bottom: 0; padding: 6px 12px; font-size: 11px;">
+        <option value="journalctl">Systemd Stack Log (journalctl)</option>
+        <option value="cleanup">Cleanup Log (cleanup.log)</option>
+        <option value="server">Server Log (server.log)</option>
+        <option value="cam1">Camera 1 Log (cam1.log)</option>
+        <option value="cam2">Camera 2 Log (cam2.log)</option>
+        <option value="cam3">Camera 3 Log (cam3.log)</option>
+        <option value="cam4">Camera 4 Log (cam4.log)</option>
+      </select>
+      
+      <div id="logDateRangeContainer" style="display: flex; gap: 6px; align-items: center; border-left: 1px solid var(--stroke-2); padding-left: 10px; border-right: 1px solid var(--stroke-2); padding-right: 10px;">
+        <span style="font-size: 11px; color: var(--ink-2);">Since:</span>
+        <input type="date" id="logSinceDate" onchange="fetchSystemLogs()" style="width: auto; padding: 4px 8px; font-size: 11px; border-radius: 8px; border: 1px solid var(--stroke-2); background: #121a28; color: white;">
+        <span style="font-size: 11px; color: var(--ink-2);">Until:</span>
+        <input type="date" id="logUntilDate" onchange="fetchSystemLogs()" style="width: auto; padding: 4px 8px; font-size: 11px; border-radius: 8px; border: 1px solid var(--stroke-2); background: #121a28; color: white;">
+      </div>
+
+      <select id="logLimitSelect" onchange="fetchSystemLogs()" style="width: auto; margin-bottom: 0; padding: 6px 12px; font-size: 11px;">
+        <option value="100">100 Lines</option>
+        <option value="500" selected>500 Lines</option>
+        <option value="1000">1000 Lines</option>
+        <option value="2000">2000 Lines</option>
+        <option value="5000">5000 Lines</option>
+      </select>
+      <button onclick="fetchSystemLogs()" style="font-size: 11px; padding: 6px 12px;">Refresh</button>
+      <button onclick="downloadCurrentLog()" style="font-size: 11px; padding: 6px 12px; background: linear-gradient(135deg, var(--accent-1), #1a9a8f); color: #000; font-weight: 600; border: none;">Export Log</button>
+      <label style="font-size: 11px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
+        <input type="checkbox" id="autoRefreshLogs" onchange="toggleAutoRefreshLogs()" style="width: auto; margin: 0; cursor: pointer;"> Auto-Refresh (5s)
+      </label>
+    </div>
+  </div>
+  <pre id="system-logs-content" style="background: #080c14; border: 1px solid var(--stroke-1); border-radius: 12px; padding: 14px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 11px; color: #a9b7c6; white-space: pre-wrap; word-break: break-all; text-align: left; margin: 0;"></pre>
+</div>
+
+<div class="meta-panel">
+  <div class="meta-section" style="border-bottom: 1px solid var(--stroke-2); padding-bottom: 15px;">
+    <p class="meta-label">Dosen Pembimbing</p>
+    <p class="meta-value" style="display: flex; justify-content: center; gap: 30px; flex-wrap: wrap;">
+      <span>1. Ir. Agus Ramelan, S.Pd., M.T.</span>
+      <span>2. Ir. Irwan Iftadi S.T., M.Eng</span>
+    </p>
+  </div>
+
+  <div class="meta-section" style="padding-top: 5px;">
+    <p class="meta-label">Tim Mahasiswa (9 Anggota)</p>
+    
+    <div class="member-row">
+      <div class="member-item">1. Ibnu Zarrar Rozin</div>
+      <div class="member-item">2. Andreas Pradipa Edra Wisista</div>
+      <div class="member-item">3. Maulana Pandega Dharmaputra</div>
+      <div class="member-item">4. Muhammad Aveesena Alfarabi</div>
+      <div class="member-item">5. Naufal Hafizh Syarifudin</div>
+    </div>
+
+    <div class="member-row">
+      <div class="member-item">6. Rafiq Irfan Majid Indranata</div>
+      <div class="member-item">7. Reza Adi Darma</div>
+      <div class="member-item">8. Suryo Haryo Wicaksono</div>
+      <div class="member-item">9. Taufan Hidayatulloh</div>
+    </div>
+  </div>
+</div>
+
+<footer class="project-footer">
+  <div class="footer-content">
+    <div class="footer-section">
+      <p class="meta-label">Contact Person (Hubungi Kami)</p>
+      <p class="footer-text-important">sispala.jaten@gmail.com &nbsp;|&nbsp; 0852-1739-4010</p>
+    </div>
+    <div class="footer-section" style="text-align: right;">
+      <p class="meta-label">Lokasi Implementasi</p>
+      <p class="meta-value" style="color: var(--ink-1);">Desa Jaten, Kecamatan Karanganyar</p>
+    </div>
+  </div>
+  <p class="copyright">&copy; 2026 SISPALA - Universitas Sebelas Maret. All Rights Reserved.</p>
+</footer>
+
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
+<script>
+  const streams = [
+    { id: 1, name: 'Pak Ramelan' },
+    { id: 2, name: 'Pak Yudho 1' },
+    { id: 3, name: 'Pak Yudho 2' },
+    { id: 4, name: 'Pak RT' }
+  ];
+
+  const LIVE_DELAY_SEC = 5;
+
+  let recordingsIndex = [];
+  let selectedRecording = null;
+  let playbackQueue = [];
+  let playbackIndex = -1;
+  let continuousPlayback = false;
+  const jumpState = {
+    calendarYear: null,
+    calendarMonth: null,
+    selectedDate: null,
+    availableDates: new Set(),
+    mode: 'hour',
+    hour: null,
+    minute: null,
+    second: null,
+    meridiem: 'AM'
+  };
+
+  const grid = document.getElementById('video-grid');
+  streams.forEach(stream => {
+    grid.innerHTML += `
+      <div class="cam-cell">
+        <video id="video-${stream.id}" muted playsinline></video>
+      </div>
+    `;
+  });
+
+  streams.forEach(stream => {
+    const video = document.getElementById(`video-${stream.id}`);
+    const url = `./Streams/cam${stream.id}/index.m3u8`;
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        lowLatencyMode: true,
+        liveSyncDuration: LIVE_DELAY_SEC,
+        liveMaxLatencyDuration: LIVE_DELAY_SEC + 3,
+        backBufferLength: 0,
+        maxLiveSyncPlaybackRate: 1.5
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => null);
+        applyLiveDelay(video);
+        setInterval(() => applyLiveDelay(video), 2000);
+      });
+    }
+  });
+
+  const historyPlayer = document.getElementById('historyPlayer');
+  const fileListDiv = document.getElementById('fileList');
+  const playingNowSpan = document.getElementById('playing-now');
+  const plyr = new Plyr('#historyPlayer', {
+    controls: [
+      'play', 'rewind', 'fast-forward', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen', 'download'
+    ],
+    settings: ['speed'],
+    speed: { selected: 1, options: [0.25, 0.5, 1, 1.5, 2, 4] }
+  });
+
+  plyr.on('ready', () => {
+    if (selectedRecording) {
+      const downloadPath = `/recordings/${selectedRecording.cam}/${selectedRecording.name}?download=true`;
+      const downloadBtns = document.querySelectorAll('a[data-plyr="download"], a.plyr__control[download]');
+      downloadBtns.forEach(btn => {
+        btn.setAttribute('href', downloadPath);
+        btn.setAttribute('download', selectedRecording.name);
+        btn.addEventListener('click', (e) => { e.stopPropagation(); });
+      });
+    }
+  });
+
+  async function fetchRecordings() {
+    const cam = document.getElementById('camSelect').value;
+    fileListDiv.innerHTML = '<div style="padding:10px;">Searching...</div>';
+
+    if (selectedRecording && selectedRecording.cam !== cam) {
+      selectedRecording = null;
+      playbackIndex = -1;
+    }
+
+    try {
+      const response = await fetch(`/api/recordings/${cam}`);
+      const files = await response.json();
+      recordingsIndex = files
+        .map((file) => ({ name: file, timestampMs: parseRecordingTimestamp(file) }))
+        .filter((file) => file.timestampMs !== null);
+      playbackQueue = recordingsIndex.slice().sort((a, b) => a.timestampMs - b.timestampMs);
+      
+      fileListDiv.innerHTML = '';
+      if (files.length === 0) {
+        fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman ditemukan.</div>';
+        return;
+      }
+
+      files.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'file-item';
+        item.dataset.filename = file;
+        item.innerText = `📁 ${file}`;
+        if (selectedRecording && selectedRecording.name === file) {
+          item.classList.add('selected');
+        }
+        item.onclick = () => selectRecording(cam, file);
+        fileListDiv.appendChild(item);
+      });
+    } catch (err) {
+      fileListDiv.innerHTML = '<div style="padding:10px; color:red;">Gagal memuat daftar.</div>';
+    }
+  }
+
+  function parseRecordingTimestamp(filename) {
+    const match = filename.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const hour = Number(match[4]);
+    const minute = Number(match[5]);
+    return new Date(year, month, day, hour, minute).getTime();
+  }
+
+  async function openJumpModal() {
+    await fetchRecordings();
+    const modal = document.getElementById('jump-modal');
+    if (modal) modal.style.display = 'flex';
+    initCalendar();
+    initClock();
+  }
+
+  function closeJumpModal() {
+    const modal = document.getElementById('jump-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  function initCalendar() {
+    jumpState.availableDates = new Set(
+      recordingsIndex.map((file) => {
+        const date = new Date(file.timestampMs);
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      })
+    );
+
+    const now = new Date();
+    jumpState.calendarYear = now.getFullYear();
+    jumpState.calendarMonth = now.getMonth();
+    jumpState.selectedDate = null;
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    const titleEl = document.getElementById('calendar-title');
+    const gridEl = document.getElementById('calendar-grid');
+    if (!gridEl) return;
+
+    const year = jumpState.calendarYear;
+    const month = jumpState.calendarMonth;
+    const first = new Date(year, month, 1);
+    const startDay = first.getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const monthName = first.toLocaleString(undefined, { month: 'long' });
+    if (titleEl) titleEl.textContent = `${monthName} ${year}`;
+
+    gridEl.innerHTML = '';
+    ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach((day) => {
+      const label = document.createElement('div');
+      label.className = 'calendar-day';
+      label.textContent = day;
+      gridEl.appendChild(label);
+    });
+
+    const totalSlots = 42;
+    for (let i = 0; i < totalSlots; i += 1) {
+      const dateNum = i - startDay + 1;
+      const cell = document.createElement('div');
+      cell.className = 'calendar-date';
+
+      if (dateNum < 1 || dateNum > daysInMonth) {
+        cell.classList.add('disabled');
+        gridEl.appendChild(cell);
+        continue;
+      }
+
+      const mm = String(month + 1).padStart(2, '0');
+      const dd = String(dateNum).padStart(2, '0');
+      const key = `${year}-${mm}-${dd}`;
+      cell.textContent = dateNum;
+
+      if (jumpState.availableDates.has(key)) cell.classList.add('available');
+      if (jumpState.selectedDate === key) cell.classList.add('selected');
+
+      cell.onclick = () => {
+        jumpState.selectedDate = key;
+        jumpState.mode = 'hour';
+        renderCalendar();
+        renderClockNumbers();
+        const hint = document.getElementById('jump-hint');
+        if (hint) hint.textContent = 'Select hour.';
+      };
+
+      gridEl.appendChild(cell);
+    }
+  }
+
+  function prevMonth() {
+    if (jumpState.calendarMonth === 0) {
+      jumpState.calendarMonth = 11;
+      jumpState.calendarYear -= 1;
+    } else {
+      jumpState.calendarMonth -= 1;
+    }
+    renderCalendar();
+  }
+
+  function nextMonth() {
+    if (jumpState.calendarMonth === 11) {
+      jumpState.calendarMonth = 0;
+      jumpState.calendarYear += 1;
+    } else {
+      jumpState.calendarMonth += 1;
+    }
+    renderCalendar();
+  }
+
+  function initClock() {
+    jumpState.mode = 'hour';
+    jumpState.hour = null;
+    jumpState.minute = null;
+    jumpState.second = null;
+    jumpState.meridiem = 'AM';
+    updateMeridiemButtons();
+    renderClockNumbers();
+    updateClockHands();
+    updateTimeDisplay();
+    updateTimeInputs();
+  }
+
+  function setMeridiem(value) {
+    jumpState.meridiem = value;
+    updateMeridiemButtons();
+    updateTimeDisplay();
+  }
+
+  function updateMeridiemButtons() {
+    const amBtn = document.getElementById('ampm-am');
+    const pmBtn = document.getElementById('ampm-pm');
+    if (amBtn) amBtn.classList.toggle('active', jumpState.meridiem === 'AM');
+    if (pmBtn) pmBtn.classList.toggle('active', jumpState.meridiem === 'PM');
+  }
+
+  function renderClockNumbers() {
+    const face = document.getElementById('clock-face');
+    if (!face) return;
+    const oldNumbers = face.querySelectorAll('.clock-number');
+    oldNumbers.forEach((node) => node.remove());
+
+    const values = jumpState.mode === 'hour' ? [12,1,2,3,4,5,6,7,8,9,10,11] : ['00','05','10','15','20','25','30','35','40','45','50','55'];
+
+    values.forEach((value, index) => {
+      const angle = (index / 12) * 2 * Math.PI - Math.PI / 2;
+      const radius = 74;
+      const x = 100 + Math.cos(angle) * radius;
+      const y = 100 + Math.sin(angle) * radius;
+      const btn = document.createElement('div');
+      btn.className = 'clock-number';
+      btn.textContent = value;
+      btn.style.left = `${x - 14}px`;
+      btn.style.top = `${y - 14}px`;
+
+      btn.onclick = () => {
+        if (!jumpState.selectedDate) {
+          const hint = document.getElementById('jump-hint');
+          if (hint) hint.textContent = 'Select a date first.';
+          return;
+        }
+
+        if (jumpState.mode === 'hour') {
+          jumpState.hour = Number(value);
+          jumpState.mode = 'minute';
+          renderClockNumbers();
+          const hint = document.getElementById('jump-hint');
+          if (hint) hint.textContent = 'Select minutes.';
+        } else {
+          jumpState.minute = Number(value);
+          confirmJumpTime();
+        }
+        updateClockHands();
+        updateTimeDisplay();
+        updateTimeInputs();
+      };
+
+      face.appendChild(btn);
+    });
+  }
+
+  function updateClockHands() {
+    const hourHand = document.getElementById('clock-hour');
+    const minuteHand = document.getElementById('clock-minute');
+    const hour = jumpState.hour || 12;
+    const minute = jumpState.minute || 0;
+    const hourAngle = ((hour % 12) + minute / 60) * 30;
+    const minuteAngle = minute * 6;
+    if (hourHand) hourHand.style.transform = `translateY(-50%) rotate(${hourAngle - 90}deg)`;
+    if (minuteHand) minuteHand.style.transform = `translateY(-50%) rotate(${minuteAngle - 90}deg)`;
+  }
+
+  function updateTimeDisplay() {
+    const display = document.getElementById('time-display');
+    const hour = jumpState.hour ? String(jumpState.hour).padStart(2, '0') : '--';
+    const minute = jumpState.minute !== null ? String(jumpState.minute).padStart(2, '0') : '--';
+    const second = jumpState.second !== null ? String(jumpState.second).padStart(2, '0') : '--';
+    if (display) display.textContent = `${hour}:${minute}:${second} ${jumpState.meridiem}`;
+  }
+
+  function updateTimeInputs() {
+    const hourInput = document.getElementById('time-hour');
+    const minuteInput = document.getElementById('time-minute');
+    const secondInput = document.getElementById('time-second');
+    if (hourInput) hourInput.value = jumpState.hour ?? '';
+    if (minuteInput) minuteInput.value = jumpState.minute ?? '';
+    if (secondInput) secondInput.value = jumpState.second ?? '';
+  }
+
+  function handleTypedTime() {
+    const hourInput = document.getElementById('time-hour');
+    const minuteInput = document.getElementById('time-minute');
+    const secondInput = document.getElementById('time-second');
+    const hour = Number(hourInput?.value);
+    const minute = Number(minuteInput?.value);
+    const second = Number(secondInput?.value);
+
+    jumpState.hour = Number.isInteger(hour) && hour >= 1 && hour <= 12 ? hour : null;
+    jumpState.minute = Number.isInteger(minute) && minute >= 0 && minute <= 59 ? minute : null;
+    jumpState.second = Number.isInteger(second) && second >= 0 && second <= 59 ? second : null;
+
+    updateClockHands();
+    updateTimeDisplay();
+  }
+
+  function applyTimeInputs() {
+    if (!jumpState.selectedDate) {
+      const hint = document.getElementById('jump-hint');
+      if (hint) hint.textContent = 'Select a date first.';
+      return;
+    }
+
+    const hourInput = document.getElementById('time-hour');
+    const minuteInput = document.getElementById('time-minute');
+    const secondInput = document.getElementById('time-second');
+    const hour = Number(hourInput?.value);
+    const minute = Number(minuteInput?.value);
+    const second = Number(secondInput?.value || 0);
+
+    if (!Number.isInteger(hour) || hour < 1 || hour > 12 || !Number.isInteger(minute) || minute < 0 || minute > 59 || !Number.isInteger(second) || second < 0 || second > 59) {
+      const hint = document.getElementById('jump-hint');
+      if (hint) hint.textContent = 'Use HH 1-12, MM 00-59, SS 00-59.';
+      return;
+    }
+
+    jumpState.hour = hour;
+    jumpState.minute = minute;
+    jumpState.second = second;
+    jumpState.mode = 'minute';
+    updateClockHands();
+    updateTimeDisplay();
+    renderClockNumbers();
+    confirmJumpTime();
+  }
+
+  function updateSelectedUI(filename) {
+    const items = fileListDiv.querySelectorAll('.file-item');
+    items.forEach((item) => item.classList.remove('selected'));
+    const target = fileListDiv.querySelector(`[data-filename="${filename}"]`);
+    if (target) {
+      target.classList.add('selected');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+
+  function setRecordingsSource(cam, filename) {
+    const videoPath = `/recordings/${cam}/${filename}`;
+    const downloadPath = `/recordings/${cam}/${filename}?download=true`;
+    historyPlayer.src = videoPath;
+    plyr.source = {
+      type: 'video',
+      sources: [{ src: videoPath, type: 'video/mp4' }],
+      urls: { download: downloadPath }
+    };
+
+    setTimeout(() => {
+      const downloadBtns = document.querySelectorAll('a[data-plyr="download"], a.plyr__control[download]');
+      downloadBtns.forEach(btn => {
+        btn.setAttribute('href', downloadPath);
+        btn.setAttribute('download', filename);
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
+      });
+    }, 250);
+  }
+
+  function selectRecording(cam, filename, autoPlay = false) {
+    selectedRecording = { cam, name: filename };
+    playbackIndex = playbackQueue.findIndex((item) => item.name === filename);
+    setRecordingsSource(cam, filename);
+    updateSelectedUI(filename);
+
+    playingNowSpan.innerText = `Ready: ${cam} - ${filename}`;
+    playingNowSpan.style.color = '#9fd9ff';
+
+    if (autoPlay) { historyPlayer.play(); } else { historyPlayer.pause(); }
+  }
+
+  function confirmJumpTime() {
+    if (!jumpState.selectedDate || jumpState.hour === null || jumpState.minute === null) return;
+    const [year, month, day] = jumpState.selectedDate.split('-').map(Number);
+    let hour = jumpState.hour % 12;
+    if (jumpState.meridiem === 'PM') hour += 12;
+
+    const targetMs = new Date(year, month - 1, day, hour, jumpState.minute, jumpState.second || 0).getTime();
+    const closest = findClosestRecording(targetMs);
+    if (closest) {
+      selectRecording(document.getElementById('camSelect').value, closest.name, false);
+      closeJumpModal();
+    } else {
+      const hint = document.getElementById('jump-hint');
+      if (hint) hint.textContent = 'No recording found for that time.';
+    }
+  }
+
+  function findClosestRecording(targetMs) {
+    let closest = null;
+    let smallestDelta = Number.POSITIVE_INFINITY;
+    recordingsIndex.forEach((file) => {
+      const delta = Math.abs(file.timestampMs - targetMs);
+      if (delta < smallestDelta) { smallestDelta = delta; closest = file; }
+    });
+    return closest;
+  }
+
+  function playNextInQueue() {
+    if (playbackIndex < 0 || playbackIndex + 1 >= playbackQueue.length) return;
+    const next = playbackQueue[playbackIndex + 1];
+    playbackIndex += 1;
+    selectRecording(document.getElementById('camSelect').value, next.name, true);
+  }
+
+  function toggleAlarm() {
+    fetch('/trigger-alarm').then(r => r.json()).then(data => {
+      const btn = document.getElementById('alarmToggle');
+      if (data.error) {
+         alert(data.error);
+         return;
+      }
+      btn.classList.add('active');
+      btn.innerText = "ALARM AKTIF!";
+      setTimeout(() => { btn.classList.remove('active'); btn.innerText = "BUNYIKAN ALARM DI SERVER"; }, 5000);
+    });
+  }
+
+  function playVideo(id) { document.getElementById(`video-${id}`).play(); }
+  function pauseVideo(id) { document.getElementById(`video-${id}`).pause(); }
+  function applyLiveDelay(video) {
+    const target = video.duration - LIVE_DELAY_SEC;
+    if (!Number.isFinite(target) || target <= 0) return;
+    if (video.currentTime > target || video.currentTime < target - 1) { video.currentTime = target; }
+  }
+
+  function goLive(id) { 
+    const v = document.getElementById(`video-${id}`); 
+    const target = v.duration - LIVE_DELAY_SEC;
+    if (Number.isFinite(target) && target > 0) { v.currentTime = target; }
+    v.play(); 
+  }
+
+  const storageEls = {
+    updated: document.getElementById('storage-updated'),
+    bar: document.getElementById('storage-bar-fill'),
+    warnings: document.getElementById('storage-warnings'),
+    disks: document.getElementById('storage-disks'),
+    filesystem: document.getElementById('stat-filesystem'),
+    mount: document.getElementById('stat-mount'),
+    capacity: document.getElementById('stat-capacity'),
+    used: document.getElementById('stat-used'),
+    free: document.getElementById('stat-free'),
+    usedPercent: document.getElementById('stat-used-percent'),
+    recordings: document.getElementById('stat-recordings'),
+    rate: document.getElementById('stat-rate'),
+    eta: document.getElementById('stat-eta')
+  };
+
+  function formatBytes(bytes) {
+    if (bytes === null || bytes === undefined || Number.isNaN(bytes)) return '-';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+    let value = bytes;
+    let idx = 0;
+    while (value >= 1024 && idx < units.length - 1) { value /= 1024; idx += 1; }
+    return `${value.toFixed(2)} ${units[idx]}`;
+  }
+
+  function formatRate(bps) { if (!bps || bps <= 0) return '-'; return `${formatBytes(bps)}/s`; }
+
+  function formatEta(seconds) {
+    if (!seconds || seconds <= 0 || !Number.isFinite(seconds)) return '-';
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${days}d ${hours}h ${mins}m ${secs}s`;
+  }
+
+  // Fungsi Baru untuk Menghapus Akun
+async function deleteExistingAccount() {
+    const username = document.getElementById('edit-username').value.trim();
+    const msgEl = document.getElementById('modify-account-msg');
+
+    if (!username) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = 'Silakan masukkan Target Username yang ingin dihapus!';
+        return;
+    }
+
+    if (!confirm(`Apakah Anda yakin ingin menghapus akun "${username}"?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/delete-account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            msgEl.style.color = 'var(--accent-1)';
+            msgEl.textContent = data.message || 'Akun berhasil dihapus!';
+            // Reset input form setelah berhasil dihapus
+            document.getElementById('edit-username').value = '';
+            document.getElementById('edit-password').value = '';
+            document.getElementById('edit-role').value = '';
+            // Perbarui daftar dropdown suggest
+            if (typeof updateUsernameSuggestions === 'function') updateUsernameSuggestions();
+        } else {
+            msgEl.style.color = 'var(--accent-3)';
+            msgEl.textContent = data.error || 'Gagal menghapus akun.';
+        }
+    } catch (e) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = 'Terjadi kesalahan sistem.';
+    }
+}
+
+  async function updateUsernameSuggestions() {
+    try {
+        const res = await fetch('/api/users-list');
+        const data = await res.json();
+        if (data.success && data.usernames) {
+            const datalist = document.getElementById('username-suggestions');
+            if (datalist) {
+                // Bersihkan data lama terlebih dahulu
+                datalist.innerHTML = '';
+                // Masukkan daftar username terbaru ke dalam opsi datalist
+                data.usernames.forEach(username => {
+                    const option = document.createElement('option');
+                    option.value = username;
+                    datalist.appendChild(option);
+                });
+            }
+        }
+    } catch (e) {
+        console.error("Gagal memuat suggest username:", e);
+    }
+}
+
+  async function fetchStorageStats() {
+    try {
+      const response = await fetch('/api/storage-stats');
+      if (!response.ok) throw new Error('Bad response');
+      const data = await response.json();
+      storageEls.updated.textContent = `Updated: ${data.updatedAt}`;
+      storageEls.bar.style.width = `${data.percentUsed || 0}%`;
+      storageEls.filesystem.textContent = data.filesystem || '-';
+      storageEls.mount.textContent = data.mountPoint || '-';
+      storageEls.capacity.textContent = formatBytes(data.sizeBytes);
+      storageEls.used.textContent = formatBytes(data.usedBytes);
+      storageEls.free.textContent = formatBytes(data.availBytes);
+      storageEls.usedPercent.textContent = `${data.percentUsed || 0}%`;
+      storageEls.recordings.textContent = formatBytes(data.recordingsBytes);
+      storageEls.rate.textContent = formatRate(data.writeRateBps);
+      storageEls.eta.textContent = formatEta(data.etaSeconds);
+      if (Array.isArray(data.missingMounts) && data.missingMounts.length > 0) { storageEls.warnings.textContent = `Missing mounts: ${data.missingMounts.join(', ')}`; } else { storageEls.warnings.textContent = ''; }
+      storageEls.disks.innerHTML = '';
+      if (Array.isArray(data.disks)) {
+        data.disks.forEach((disk) => {
+          const diskEl = document.createElement('div');
+          diskEl.className = 'storage-disk';
+          const title = disk.label || disk.mountPoint || 'Disk';
+          const status = disk.isMounted === false ? 'Missing' : 'Mounted';
+          diskEl.innerHTML = `
+            <div class="storage-disk-title">${title}</div>
+            <div class="storage-bar" style="height: 6px; margin: 4px 0 8px; background: #0b111b; border: 1px solid var(--stroke-2); border-radius: 999px; overflow: hidden; width: 100%;">
+              <div class="storage-bar-fill" style="height: 100%; width: ${disk.percentUsed || 0}%; background: linear-gradient(90deg, #2ecc71, #f1c40f, #e74c3c); transition: width 0.6s ease;"></div>
+            </div>
+            <div class="storage-disk-row">Status: <span>${status}</span></div>
+            <div class="storage-disk-row">Source: <span>${disk.source || '-'}</span></div>
+            <div class="storage-disk-row">FS: <span>${disk.fsType || '-'}</span></div>
+            <div class="storage-disk-row">Size: <span>${formatBytes(disk.sizeBytes)}</span></div>
+            <div class="storage-disk-row">Used: <span>${formatBytes(disk.usedBytes)} (${disk.percentUsed || 0}%)</span></div>
+            <div class="storage-disk-row">Free: <span>${formatBytes(disk.availBytes)}</span></div>
+            <div class="storage-disk-row">Recordings: <span>${formatBytes(disk.recordingsBytes)}</span></div>
+          `;
+          storageEls.disks.appendChild(diskEl);
+        });
+      }
+    } catch (err) { storageEls.updated.textContent = 'Storage data unavailable'; }
+    fetchStorageCleanupLogs();
+  }
+
+  function applyPermissions(role) {
+      document.getElementById('login-overlay').style.display = 'none';
+      document.getElementById('main-content').style.display = 'block';
+      
+      const alarmBtn = document.getElementById('alarmToggle');
+      const superadminPanel = document.getElementById('superadmin-panel');
+      const systemLogsPanel = document.getElementById('system-logs-panel');
+      
+      if (role === 'admin') {
+          alarmBtn.style.display = 'inline-block'; 
+      } else {
+          alarmBtn.style.display = 'none'; 
+      }
+
+      if (role === 'superadmin') {
+          superadminPanel.style.display = 'block';
+          systemLogsPanel.style.display = 'block';
+          fetchSuperadminLogs();
+          fetchSystemLogs();
+      } else {
+          superadminPanel.style.display = 'none';
+          systemLogsPanel.style.display = 'none';
+          toggleAutoRefreshLogs(false);
+      }
+  }
+
+  async function fetchSuperadminLogs() {
+      try {
+          const res = await fetch('/api/logs');
+          const data = await res.json();
+          const tbody = document.getElementById('log-table-body');
+          if (data.success && Array.isArray(data.logs)) {
+              tbody.innerHTML = '';
+              if (data.logs.length === 0) {
+                  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#aaa;">Belum ada log aktivitas.</td></tr>';
+                  return;
+              }
+              data.logs.forEach(log => {
+                  const badgeClass = log.action === 'LOGIN' ? 'badge-login' : 'badge-logout';
+                  tbody.innerHTML += `
+                      <tr>
+                          <td style="color:#aaa">${log.timestamp}</td>
+                          <td style="font-weight:600; color:#fff">${log.username}</td>
+                          <td><span style="color:var(--accent-2)">${log.role}</span></td>
+                          <td><span class="${badgeClass}">${log.action}</span></td>
+                      </tr>
+                  `;
+              });
+          } else {
+              document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Gagal memuat log data.</td></tr>';
+          }
+      } catch (err) {
+          document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Koneksi error.</td></tr>';
+      }
+  }
+
+  async function createNewAccount() {
+      const userEl = document.getElementById('new-username');
+      const passEl = document.getElementById('new-password');
+      const roleEl = document.getElementById('new-role');
+      const msgEl = document.getElementById('create-account-msg');
+
+      try {
+          const res = await fetch('/api/create-account', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  newUsername: userEl.value,
+                  newPassword: passEl.value,
+                  newRole: roleEl.value
+              })
+          });
+          const data = await res.json();
+          if (data.success) {
+              msgEl.style.color = '#2ecc71';
+              msgEl.innerText = data.message;
+              userEl.value = '';
+              passEl.value = '';
+              roleEl.value = '';
+          } else {
+              msgEl.style.color = '#e74c3c';
+              msgEl.innerText = data.message;
+          }
+      } catch (err) {
+          msgEl.style.color = '#e74c3c';
+          msgEl.innerText = 'Gagal terhubung ke server.';
+      }
+  }
+
+  // BARU: Fungsi mengirim permintaan modifikasi password / role akun ke API Server
+  async function modifyExistingAccount() {
+      const userEl = document.getElementById('edit-username');
+      const passEl = document.getElementById('edit-password');
+      const roleEl = document.getElementById('edit-role');
+      const msgEl = document.getElementById('modify-account-msg');
+
+      try {
+        
+          const res = await fetch('/api/modify-account', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  username: userEl.value,
+                  newPassword: passEl.value || null, // Kirim null jika tidak diganti
+                  newRole: roleEl.value || null      // Kirim null jika tidak diganti
+              })
+          });
+          // BARU: API untuk Mengambil Daftar Username saja untuk Fitur Suggest Dropdown (Hanya untuk Superadmin)
+
+          // Fungsi Baru untuk Mengisi Dropdown Suggest Username
+
+          const data = await res.json();
+          if (data.success) {
+              msgEl.style.color = '#2ecc71';
+              msgEl.innerText = data.message;
+              userEl.value = '';
+              passEl.value = '';
+              roleEl.value = '';
+          } else {
+              msgEl.style.color = '#e74c3c';
+              msgEl.innerText = data.message;
+          }
+      } catch (err) {
+          msgEl.style.color = '#e74c3c';
+          msgEl.innerText = 'Gagal terhubung ke server.';
+      }
+  }
+
+  window.onload = () => {
+    fetchRecordings();
+    fetchStorageStats();
+    setInterval(fetchStorageStats, 5000);
+    const hourInput = document.getElementById('time-hour');
+    const minuteInput = document.getElementById('time-minute');
+    const secondInput = document.getElementById('time-second');
+    if (hourInput) hourInput.addEventListener('input', handleTypedTime);
+    if (minuteInput) minuteInput.addEventListener('input', handleTypedTime);
+    if (secondInput) secondInput.addEventListener('input', handleTypedTime);
+  };
+
+  historyPlayer.addEventListener('play', () => {
+    continuousPlayback = true;
+    if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name}`; playingNowSpan.style.color = '#3498db'; }
+  });
+  historyPlayer.addEventListener('pause', () => { if (!historyPlayer.ended) continuousPlayback = false; });
+  historyPlayer.addEventListener('ended', () => { if (continuousPlayback) playNextInQueue(); });
+
+  async function handleLogin() {
+    const user = document.getElementById('username').value;
+    const pass = document.getElementById('password').value;
+
+    const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+        applyPermissions(data.role);
+    } else {
+        document.getElementById('login-error').innerText = data.message;
+    }
+  }
+
+  let logsIntervalId = null;
+
+  async function fetchSystemLogs() {
+      const sourceSelect = document.getElementById('logSourceSelect');
+      const limitSelect = document.getElementById('logLimitSelect');
+      const contentEl = document.getElementById('system-logs-content');
+      if (!sourceSelect || !limitSelect || !contentEl) return;
+      
+      const source = sourceSelect.value;
+      const limit = limitSelect.value;
+
+      // Selalu tampilkan rentang tanggal untuk semua log source
+      const dateRangeContainer = document.getElementById('logDateRangeContainer');
+      if (dateRangeContainer) {
+          dateRangeContainer.style.display = 'flex';
+      }
+
+      let url = `/api/system-logs?source=${source}&limit=${limit}`;
+      const sinceEl = document.getElementById('logSinceDate');
+      const untilEl = document.getElementById('logUntilDate');
+      if (sinceEl && sinceEl.value) url += `&since=${sinceEl.value}`;
+      if (untilEl && untilEl.value) url += `&until=${untilEl.value}`;
+
+      try {
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.success) {
+              contentEl.textContent = data.logs || 'No logs available.';
+              contentEl.scrollTop = contentEl.scrollHeight;
+          } else {
+              contentEl.textContent = `Error loading logs: ${data.error || 'Unknown error'}`;
+          }
+      } catch (err) {
+          contentEl.textContent = 'Failed to connect to log server.';
+      }
+  }
+
+  function downloadCurrentLog() {
+      const sourceSelect = document.getElementById('logSourceSelect');
+      const limitSelect = document.getElementById('logLimitSelect');
+      if (!sourceSelect || !limitSelect) return;
+      const source = sourceSelect.value;
+      const limit = limitSelect.value;
+      let url = `/api/system-logs?source=${source}&limit=${limit}&download=true`;
+      const sinceEl = document.getElementById('logSinceDate');
+      const untilEl = document.getElementById('logUntilDate');
+      if (sinceEl && sinceEl.value) url += `&since=${sinceEl.value}`;
+      if (untilEl && untilEl.value) url += `&until=${untilEl.value}`;
+      window.open(url, '_blank');
+  }
+
+  function toggleAutoRefreshLogs(forceState) {
+      const checkbox = document.getElementById('autoRefreshLogs');
+      const shouldEnable = forceState !== undefined ? forceState : (checkbox && checkbox.checked);
+      
+      if (checkbox && forceState !== undefined) {
+          checkbox.checked = forceState;
+      }
+
+      if (logsIntervalId) {
+          clearInterval(logsIntervalId);
+          logsIntervalId = null;
+      }
+
+      if (shouldEnable) {
+          logsIntervalId = setInterval(fetchSystemLogs, 5000);
+      }
+  }
+
+  async function fetchStorageCleanupLogs() {
+      const el = document.getElementById('storage-cleanup-log-container');
+      if (!el) return;
+      try {
+          const res = await fetch('/api/cleanup-log');
+          const data = await res.json();
+          if (data.success) {
+              const logsText = data.logs || '';
+              if (!logsText.trim()) {
+                  el.innerHTML = '<div style="color: #6272a4; text-align: center; padding: 20px 0; font-style: italic;">Belum ada aktivitas pembersihan.</div>';
+                  return;
+              }
+              
+              const lines = logsText.split('\n');
+              let html = '';
+              lines.forEach(line => {
+                  if (!line.trim()) return;
+                  
+                  // Parse timestamp: [YYYY-MM-DD HH:MM:SS]
+                  const match = line.match(/^\[([^\]]+)\]\s*(.*)$/);
+                  if (match) {
+                      const timeStr = match[1];
+                      const message = match[2];
+                      
+                      let cardStyle = "padding: 8px 12px; border-radius: 8px; font-size: 11px; display: flex; flex-direction: column; gap: 4px; border: 1px solid ";
+                      let titleStyle = "font-weight: 600; display: flex; align-items: center; gap: 6px;";
+                      let typeLabel = "";
+                      let typeColor = "";
+                      let borderColor = "";
+                      let bgColor = "";
+                      let iconSvg = "";
+                      
+                      if (message.includes("Storage Alert")) {
+                          typeLabel = "STORAGE ALERT";
+                          typeColor = "#ff5555";
+                          borderColor = "rgba(255, 85, 85, 0.25)";
+                          bgColor = "rgba(255, 85, 85, 0.05)";
+                          iconSvg = `
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${typeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                              </svg>
+                          `;
+                      } else if (message.includes("Deleted old recording")) {
+                          typeLabel = "CLEANUP";
+                          typeColor = "#60a5fa";
+                          borderColor = "rgba(96, 165, 250, 0.2)";
+                          bgColor = "rgba(96, 165, 250, 0.03)";
+                          iconSvg = `
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${typeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                              </svg>
+                          `;
+                      } else if (message.includes("Auto-cleanup complete") || message.includes("cleanup complete")) {
+                          typeLabel = "CLEANUP COMPLETE";
+                          typeColor = "#50fa7b";
+                          borderColor = "rgba(80, 250, 123, 0.25)";
+                          bgColor = "rgba(80, 250, 123, 0.05)";
+                          iconSvg = `
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${typeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                              </svg>
+                          `;
+                      } else {
+                          typeLabel = "SYSTEM INFO";
+                          typeColor = "#bd93f9";
+                          borderColor = "rgba(189, 147, 249, 0.2)";
+                          bgColor = "rgba(189, 147, 249, 0.03)";
+                          iconSvg = `
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="${typeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                  <circle cx="12" cy="12" r="10"></circle>
+                                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                              </svg>
+                          `;
+                      }
+                      
+                      let formattedMsg = message;
+                      if (message.includes("Deleted old recording:")) {
+                          const fileMatch = message.match(/Deleted old recording:\s*(\S+)\s*\(([^)]+)\)/);
+                          if (fileMatch) {
+                              const filename = fileMatch[1];
+                              const sizeFreed = fileMatch[2];
+                              formattedMsg = `Deleted <span style="color: #f1fa8c; font-family: monospace;">${filename}</span> <span style="background: rgba(96, 165, 250, 0.15); color: #9fd9ff; padding: 1px 6px; border-radius: 4px; font-size: 10px; margin-left: 6px; font-weight: 500;">${sizeFreed}</span>`;
+                          }
+                      } else if (message.includes("Auto-cleanup complete")) {
+                          const spaceMatch = message.match(/Successfully freed\s*(\S+\s*[a-zA-Z]+)\s*by deleting\s*(\d+)\s*file\(s\)/);
+                          if (spaceMatch) {
+                              const freedSpace = spaceMatch[1];
+                              const numFiles = spaceMatch[2];
+                              formattedMsg = `Cleanup finished. Freed <span style="color: #50fa7b; font-weight: 600;">${freedSpace}</span> by removing <span style="color: #f1fa8c;">${numFiles} file(s)</span>.`;
+                          }
+                      }
+                      
+                      html += `
+                          <div style="${cardStyle} ${borderColor}; background: ${bgColor}; color: #f8f8f2;">
+                              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 10px;">
+                                  <div style="${titleStyle} color: ${typeColor}; letter-spacing: 0.5px;">
+                                      ${iconSvg}
+                                      <span>${typeLabel}</span>
+                                  </div>
+                                  <div style="color: #6272a4;">${timeStr}</div>
+                              </div>
+                              <div style="line-height: 1.4; color: #dbe7ff;">${formattedMsg}</div>
+                          </div>
+                      `;
+                  } else {
+                      html += `
+                          <div style="padding: 6px 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; color: #a9b7c6; font-size: 11px;">
+                              ${line}
+                          </div>
+                      `;
+                  }
+              });
+              
+              el.innerHTML = html;
+              el.scrollTop = el.scrollHeight;
+          }
+      } catch (e) {
+          console.error("Error fetching cleanup logs:", e);
+      }
+  }
+
+  async function executeLogout() {
+      const res = await fetch('/api/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await res.json();
+      if (data.success) {
+          window.location.reload(); 
+      } else {
+          alert('Gagal melakukan logout, silakan coba lagi.');
+      }
+  }
+
+  window.addEventListener('DOMContentLoaded', async () => {
+      const res = await fetch('/api/check-session');
+      const data = await res.json();
+      if (data.loggedIn) {
+          applyPermissions(data.user.role);
+      }
+  });
+</script>
+</div>
+</body>
+</html>

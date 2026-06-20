@@ -1,0 +1,22 @@
+[
+    {
+        "username": "superadmin",
+        "password": "superpassword",
+        "role": "superadmin"
+    },
+    {
+        "username": "Sispala",
+        "password": "rezacoli",
+        "role": "admin"
+    },
+    {
+        "username": "warga_admin",
+        "password": "admin",
+        "role": "admin"
+    },
+    {
+        "username": "warga",
+        "password": "sehatselalu",
+        "role": "guest"
+    }
+]

@@ -1,0 +1,15 @@
+[Unit]
+Description=Sispala Web CCTV Server
+After=network.target
+
+[Service]
+Type=simple
+User=sispala
+WorkingDirectory=/home/sispala/myversion/Sispala_Web
+ExecStart=/usr/bin/node /home/sispala/myversion/Sispala_Web/server.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
