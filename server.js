@@ -341,7 +341,7 @@ app.get('/api/system-logs', (req, res) => {
         }
         cmd += ` -n ${lineCount} --no-pager`;
 
-        exec(cmd, (err, stdout, stderr) => {
+        exec(cmd, { maxBuffer: 1024 * 1024 * 100 }, (err, stdout, stderr) => {
             if (err) {
                 // Fallback jika journalctl gagal / tidak tersedia
                 try {
