@@ -666,6 +666,8 @@
         <option value="1000">1000 Lines</option>
         <option value="2000">2000 Lines</option>
         <option value="5000">5000 Lines</option>
+        <option value="100000">100,000 Lines (Export Only)</option>
+        <option value="500000">500,000 Lines (Export Only)</option>
       </select>
       <button onclick="fetchSystemLogs()" style="font-size: 11px; padding: 6px 12px;">Refresh</button>
       <button onclick="downloadCurrentLog()" style="font-size: 11px; padding: 6px 12px; background: linear-gradient(135deg, var(--accent-1), #1a9a8f); color: #000; font-weight: 600; border: none;">Export Log</button>
@@ -1543,7 +1545,11 @@ async function deleteExistingAccount() {
           const res = await fetch(url);
           const data = await res.json();
           if (data.success) {
-              contentEl.textContent = data.logs || 'No logs available.';
+              let logs = data.logs || 'No logs available.';
+              if (parseInt(limit) > 5000) {
+                  logs = `[INFO: Tampilan layar dibatasi maks. 5.000 baris agar browser Anda tidak lag/freeze. Gunakan tombol 'Export Log' di sebelah kanan untuk mengunduh versi lengkap ${parseInt(limit).toLocaleString()} baris!]\n\n` + logs;
+              }
+              contentEl.textContent = logs;
               contentEl.scrollTop = contentEl.scrollHeight;
           } else {
               contentEl.textContent = `Error loading logs: ${data.error || 'Unknown error'}`;
