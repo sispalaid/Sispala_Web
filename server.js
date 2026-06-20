@@ -274,6 +274,10 @@ app.get('/api/logs', (req, res) => {
             logs = [];
         }
     }
+    // Mengembalikan log terbalik agar aktivitas terbaru berada di paling atas
+    res.json({ success: true, logs: logs.reverse() });
+});
+
 // Helper internal untuk memfilter baris log berdasarkan rentang tanggal sejak/sampai
 function filterLinesByDate(lines, since, until) {
     const sinceDate = since ? new Date(since + 'T00:00:00') : null;
