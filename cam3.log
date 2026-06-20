@@ -1,67 +1,0 @@
-]0;Cam3 - RC3Input #0, rtsp, from 'rtsp://admin:sispala-RC3@192.168.0.11:555/stream1':
-  Metadata:
-    title           : Session streamed by "TP-LINK RTSP Server"
-  Duration: N/A, start: 0.000000, bitrate: N/A
-  Stream #0:0: Video: h264 (High), yuvj420p(pc, progressive), 1280x720, 15 fps, 25 tbr, 90k tbn
-  Stream #0:1: Audio: pcm_alaw, 8000 Hz, mono, s16, 64 kb/s
-Stream mapping:
-  Stream #0:0 -> #0:0 (h264 (native) -> h264 (h264_vaapi))
-  Stream #0:1 -> #0:1 (pcm_alaw (native) -> aac (native))
-  Stream #0:0 -> #1:0 (copy)
-  Stream #0:1 -> #1:1 (pcm_alaw (native) -> aac (native))
-Press [q] to stop, [?] for help
-[aac @ 0x55c6984f6a00] Too many bits 8832.000000 > 6144 per frame requested, clamping to max
-[segment @ 0x55c6984f4b80] Opening '/home/sispala/myversion/Sispala_Web/Rekaman/cam3/2026-05-26_19-21.mp4' for writing
-Output #1, segment, to '/home/sispala/myversion/Sispala_Web/Rekaman/cam3/%Y-%m-%d_%H-%M.mp4':
-  Metadata:
-    title           : Session streamed by "TP-LINK RTSP Server"
-    encoder         : Lavf62.12.101
-  Stream #1:0: Video: h264 (High), yuvj420p(pc, progressive), 1280x720, q=2-31, 15 fps, 25 tbr, 90k tbn
-  Stream #1:1: Audio: aac (LC), 8000 Hz, mono, fltp, 48 kb/s
-    Metadata:
-      encoder         : Lavc62.28.101 aac
-[segment @ 0x55c6984f4b80] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
-[vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 0, current: 0; changing to 1. This may result in incorrect timestamps in the output file.
-Output #0, hls, to 'Streams/cam3/index.m3u8':
-  Metadata:
-    title           : Session streamed by "TP-LINK RTSP Server"
-    encoder         : Lavf62.12.101
-  Stream #0:0: Video: h264 (High), vaapi(pc, progressive), 640x360, q=2-31, 15 fps, 90k tbn
-    Metadata:
-      encoder         : Lavc62.28.101 h264_vaapi
-  Stream #0:1: Audio: aac (LC), 16000 Hz, mono, fltp, 64 kb/s
-    Metadata:
-      encoder         : Lavc62.28.101 aac
-[aac @ 0x55c6984667c0] Queue input is backward in time
-[aost#0:1/aac @ 0x55c698466080] Non-monotonic DTS; previous: 5760, current: 0; changing to 5761. This may result in incorrect timestamps in the output file.
-[vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 108000, current: 108000; changing to 108001. This may result in incorrect timestamps in the output file.
-[vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 154800, current: 154800; changing to 154801. This may result in incorrect timestamps in the output file.
-frame=   30 fps=0.0 q=-0.0 q=-1.0 size=N/A time=00:00:01.93 bitrate=N/A dup=0 drop=1 speed=3.87x elapsed=0:00:00.50    frame=   38 fps= 38 q=-0.0 q=-1.0 size=N/A time=00:00:02.46 bitrate=N/A dup=0 drop=1 speed=2.47x elapsed=0:00:01.00    frame=   45 fps= 30 q=-0.0 q=-1.0 size=N/A time=00:00:02.93 bitrate=N/A dup=0 drop=1 speed=1.96x elapsed=0:00:01.50    [vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 334800, current: 334800; changing to 334801. This may result in incorrect timestamps in the output file.
-frame=   53 fps= 26 q=-0.0 q=-1.0 size=N/A time=00:00:03.46 bitrate=N/A dup=0 drop=1 speed=1.73x elapsed=0:00:02.00    frame=   59 fps= 24 q=-0.0 q=-1.0 size=N/A time=00:00:03.86 bitrate=N/A dup=0 drop=1 speed=1.55x elapsed=0:00:02.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg000.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-[vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 392400, current: 392400; changing to 392401. This may result in incorrect timestamps in the output file.
-frame=   68 fps= 23 q=-0.0 q=-1.0 size=N/A time=00:00:04.46 bitrate=N/A dup=0 drop=1 speed=1.49x elapsed=0:00:03.00    frame=   75 fps= 21 q=-0.0 q=-1.0 size=N/A time=00:00:04.93 bitrate=N/A dup=0 drop=1 speed=1.41x elapsed=0:00:03.50    frame=   83 fps= 21 q=-0.0 q=-1.0 size=N/A time=00:00:05.46 bitrate=N/A dup=0 drop=1 speed=1.37x elapsed=0:00:04.00    frame=   90 fps= 20 q=-0.0 q=-1.0 size=N/A time=00:00:05.93 bitrate=N/A dup=0 drop=1 speed=1.32x elapsed=0:00:04.50    frame=   98 fps= 20 q=-0.0 q=-1.0 size=N/A time=00:00:06.46 bitrate=N/A dup=0 drop=1 speed=1.29x elapsed=0:00:05.00    frame=  105 fps= 19 q=-0.0 q=-1.0 size=N/A time=00:00:06.93 bitrate=N/A dup=0 drop=1 speed=1.26x elapsed=0:00:05.50    frame=  113 fps= 19 q=-0.0 q=-1.0 size=N/A time=00:00:07.46 bitrate=N/A dup=0 drop=1 speed=1.24x elapsed=0:00:06.00    frame=  119 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:07.86 bitrate=N/A dup=0 drop=1 speed=1.21x elapsed=0:00:06.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg001.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-frame=  127 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:08.40 bitrate=N/A dup=0 drop=1 speed= 1.2x elapsed=0:00:07.00    frame=  134 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:08.86 bitrate=N/A dup=0 drop=1 speed=1.18x elapsed=0:00:07.50    frame=  142 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:09.40 bitrate=N/A dup=0 drop=1 speed=1.17x elapsed=0:00:08.00    [vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 892800, current: 892800; changing to 892801. This may result in incorrect timestamps in the output file.
-frame=  149 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:09.86 bitrate=N/A dup=0 drop=1 speed=1.16x elapsed=0:00:08.50    frame=  157 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:10.40 bitrate=N/A dup=0 drop=1 speed=1.16x elapsed=0:00:09.00    frame=  164 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:10.86 bitrate=N/A dup=0 drop=1 speed=1.14x elapsed=0:00:09.50    frame=  172 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:11.40 bitrate=N/A dup=0 drop=1 speed=1.14x elapsed=0:00:10.00    [vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 1072800, current: 1072800; changing to 1072801. This may result in incorrect timestamps in the output file.
-frame=  180 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:11.93 bitrate=N/A dup=0 drop=1 speed=1.14x elapsed=0:00:10.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg002.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-frame=  188 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:12.46 bitrate=N/A dup=0 drop=1 speed=1.13x elapsed=0:00:11.00    frame=  195 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:12.93 bitrate=N/A dup=0 drop=1 speed=1.12x elapsed=0:00:11.50    frame=  203 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:13.46 bitrate=N/A dup=0 drop=1 speed=1.12x elapsed=0:00:12.00    frame=  210 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:13.93 bitrate=N/A dup=0 drop=1 speed=1.11x elapsed=0:00:12.50    frame=  218 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:14.46 bitrate=N/A dup=0 drop=1 speed=1.11x elapsed=0:00:13.00    frame=  225 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:14.93 bitrate=N/A dup=0 drop=1 speed=1.11x elapsed=0:00:13.50    frame=  233 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:15.46 bitrate=N/A dup=0 drop=1 speed= 1.1x elapsed=0:00:14.00    frame=  240 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:15.93 bitrate=N/A dup=0 drop=1 speed= 1.1x elapsed=0:00:14.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg003.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-frame=  248 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:16.46 bitrate=N/A dup=0 drop=1 speed= 1.1x elapsed=0:00:15.00    frame=  255 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:16.93 bitrate=N/A dup=0 drop=1 speed=1.09x elapsed=0:00:15.50    frame=  263 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:17.46 bitrate=N/A dup=0 drop=1 speed=1.09x elapsed=0:00:16.00    frame=  270 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:17.93 bitrate=N/A dup=0 drop=1 speed=1.09x elapsed=0:00:16.50    frame=  278 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:18.46 bitrate=N/A dup=0 drop=1 speed=1.09x elapsed=0:00:17.00    frame=  285 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:18.93 bitrate=N/A dup=0 drop=1 speed=1.08x elapsed=0:00:17.50    frame=  293 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:19.46 bitrate=N/A dup=0 drop=1 speed=1.08x elapsed=0:00:18.00    frame=  300 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:19.93 bitrate=N/A dup=0 drop=1 speed=1.08x elapsed=0:00:18.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg004.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-frame=  308 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:20.46 bitrate=N/A dup=0 drop=1 speed=1.08x elapsed=0:00:19.00    frame=  315 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:20.93 bitrate=N/A dup=0 drop=1 speed=1.07x elapsed=0:00:19.50    frame=  323 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:21.46 bitrate=N/A dup=0 drop=1 speed=1.07x elapsed=0:00:20.00    frame=  330 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:21.93 bitrate=N/A dup=0 drop=1 speed=1.07x elapsed=0:00:20.50    frame=  338 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:22.46 bitrate=N/A dup=0 drop=1 speed=1.07x elapsed=0:00:21.00    frame=  345 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:22.93 bitrate=N/A dup=0 drop=1 speed=1.07x elapsed=0:00:21.50    frame=  353 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:23.46 bitrate=N/A dup=0 drop=1 speed=1.07x elapsed=0:00:22.00    frame=  360 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:23.93 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:22.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg005.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-frame=  368 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:24.46 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:23.00    frame=  375 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:24.93 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:23.50    frame=  383 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:25.46 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:24.00    frame=  390 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:25.93 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:24.50    frame=  398 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:26.46 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:25.00    frame=  405 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:26.93 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:25.50    frame=  413 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:27.46 bitrate=N/A dup=0 drop=1 speed=1.06x elapsed=0:00:26.00    frame=  420 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:27.93 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:26.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg006.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-frame=  428 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:28.46 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:27.00    frame=  435 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:28.93 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:27.50    frame=  443 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:29.46 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:28.00    frame=  451 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:30.00 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:28.50    frame=  458 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:30.46 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:29.00    frame=  465 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:30.93 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:29.50    frame=  473 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:31.46 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:30.00    frame=  480 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:31.93 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:30.50    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg007.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-frame=  488 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:32.46 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:31.00    frame=  494 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:32.86 bitrate=N/A dup=0 drop=1 speed=1.04x elapsed=0:00:31.50    frame=  502 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:33.40 bitrate=N/A dup=0 drop=1 speed=1.04x elapsed=0:00:32.00    [vost#1:0/copy @ 0x55c6984f5780] Non-monotonic DTS; previous: 3052800, current: 3052800; changing to 3052801. This may result in incorrect timestamps in the output file.
-frame=  510 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:33.93 bitrate=N/A dup=0 drop=1 speed=1.04x elapsed=0:00:32.50    frame=  517 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:34.40 bitrate=N/A dup=0 drop=1 speed=1.04x elapsed=0:00:33.00    [hls @ 0x55c698368540] Opening 'Streams/cam3/seg008.ts' for writing
-[hls @ 0x55c698368540] Opening 'Streams/cam3/index.m3u8.tmp' for writing
-[out#0/hls @ 0x55c698353f80] video:1149KiB audio:203KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-[out#1/segment @ 0x55c6984f1f80] video:733KiB audio:129KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-frame=  531 fps= 16 q=-0.0 Lq=-1.0 size=N/A time=00:00:35.32 bitrate=N/A dup=0 drop=1 speed=1.05x elapsed=0:00:33.58    
-[aac @ 0x55c6984667c0] Qavg: 64194.387
-[aac @ 0x55c6984f6a00] Qavg: 64498.078
-Exiting normally, received signal 2.

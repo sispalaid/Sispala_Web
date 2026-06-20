@@ -1,72 +1,0 @@
-]0;Cam4 - RC4Input #0, rtsp, from 'rtsp://admin:sispala-RC4@192.168.0.11:556/stream1':
-  Metadata:
-    title           : Session streamed by "TP-LINK RTSP Server"
-  Duration: N/A, start: 0.000000, bitrate: N/A
-  Stream #0:0: Video: h264 (High), yuvj420p(pc, progressive), 1280x720, 15 fps, 25 tbr, 90k tbn
-  Stream #0:1: Audio: pcm_alaw, 8000 Hz, mono, s16, 64 kb/s
-Stream mapping:
-  Stream #0:0 -> #0:0 (h264 (native) -> h264 (h264_vaapi))
-  Stream #0:1 -> #0:1 (pcm_alaw (native) -> aac (native))
-  Stream #0:0 -> #1:0 (copy)
-  Stream #0:1 -> #1:1 (pcm_alaw (native) -> aac (native))
-Press [q] to stop, [?] for help
-[aac @ 0x55c91794cf40] Too many bits 8832.000000 > 6144 per frame requested, clamping to max
-[segment @ 0x55c91794b0c0] Opening '/home/sispala/myversion/Sispala_Web/Rekaman/cam4/2026-05-26_19-21.mp4' for writing
-Output #1, segment, to '/home/sispala/myversion/Sispala_Web/Rekaman/cam4/%Y-%m-%d_%H-%M.mp4':
-  Metadata:
-    title           : Session streamed by "TP-LINK RTSP Server"
-    encoder         : Lavf62.12.101
-  Stream #1:0: Video: h264 (High), yuvj420p(pc, progressive), 1280x720, q=2-31, 15 fps, 25 tbr, 90k tbn
-  Stream #1:1: Audio: aac (LC), 8000 Hz, mono, fltp, 48 kb/s
-    Metadata:
-      encoder         : Lavc62.28.101 aac
-[segment @ 0x55c91794b0c0] Timestamps are unset in a packet for stream 0. This is deprecated and will stop working in the future. Fix your code to set the timestamps properly
-[vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 0, current: 0; changing to 1. This may result in incorrect timestamps in the output file.
-[vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 1, current: 0; changing to 2. This may result in incorrect timestamps in the output file.
-[aac @ 0x55c9178bccc0] Queue input is backward in time
-Output #0, hls, to 'Streams/cam4/index.m3u8':
-  Metadata:
-    title           : Session streamed by "TP-LINK RTSP Server"
-    encoder         : Lavf62.12.101
-  Stream #0:0: Video: h264 (High), vaapi(pc, progressive), 640x360, q=2-31, 15 fps, 90k tbn
-    Metadata:
-      encoder         : Lavc62.28.101 h264_vaapi
-  Stream #0:1: Audio: aac (LC), 16000 Hz, mono, fltp, 64 kb/s
-    Metadata:
-      encoder         : Lavc62.28.101 aac
-[aost#0:1/aac @ 0x55c9178bc5c0] Non-monotonic DTS; previous: 5760, current: 0; changing to 5761. This may result in incorrect timestamps in the output file.
-[vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 176400, current: 176400; changing to 176401. This may result in incorrect timestamps in the output file.
-frame=   30 fps=0.0 q=-0.0 q=-1.0 size=N/A time=00:00:01.93 bitrate=N/A speed=3.87x elapsed=0:00:00.50    frame=   38 fps= 38 q=-0.0 q=-1.0 size=N/A time=00:00:02.43 bitrate=N/A speed=2.43x elapsed=0:00:01.00    frame=   45 fps= 30 q=-0.0 q=-1.0 size=N/A time=00:00:02.93 bitrate=N/A speed=1.96x elapsed=0:00:01.50    frame=   52 fps= 26 q=-0.0 q=-1.0 size=N/A time=00:00:03.40 bitrate=N/A speed= 1.7x elapsed=0:00:02.00    frame=   60 fps= 24 q=-0.0 q=-1.0 size=N/A time=00:00:03.93 bitrate=N/A speed=1.57x elapsed=0:00:02.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg000.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-frame=   68 fps= 23 q=-0.0 q=-1.0 size=N/A time=00:00:04.46 bitrate=N/A speed=1.49x elapsed=0:00:03.00    frame=   74 fps= 21 q=-0.0 q=-1.0 size=N/A time=00:00:04.86 bitrate=N/A speed=1.39x elapsed=0:00:03.50    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 507600, current: 507600; changing to 507601. This may result in incorrect timestamps in the output file.
-frame=   83 fps= 21 q=-0.0 q=-1.0 size=N/A time=00:00:05.46 bitrate=N/A speed=1.37x elapsed=0:00:04.00    frame=   90 fps= 20 q=-0.0 q=-1.0 size=N/A time=00:00:05.93 bitrate=N/A speed=1.32x elapsed=0:00:04.50    frame=   98 fps= 20 q=-0.0 q=-1.0 size=N/A time=00:00:06.46 bitrate=N/A speed=1.29x elapsed=0:00:05.00    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 615600, current: 615600; changing to 615601. This may result in incorrect timestamps in the output file.
-frame=  105 fps= 19 q=-0.0 q=-1.0 size=N/A time=00:00:06.93 bitrate=N/A speed=1.26x elapsed=0:00:05.50    frame=  113 fps= 19 q=-0.0 q=-1.0 size=N/A time=00:00:07.42 bitrate=N/A speed=1.24x elapsed=0:00:06.00    frame=  120 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:07.93 bitrate=N/A speed=1.22x elapsed=0:00:06.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg001.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-frame=  128 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:08.44 bitrate=N/A speed=1.21x elapsed=0:00:07.00    frame=  135 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:08.93 bitrate=N/A speed=1.19x elapsed=0:00:07.50    frame=  143 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:09.46 bitrate=N/A speed=1.18x elapsed=0:00:08.00    frame=  150 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:09.93 bitrate=N/A speed=1.17x elapsed=0:00:08.50    frame=  158 fps= 18 q=-0.0 q=-1.0 size=N/A time=00:00:10.46 bitrate=N/A speed=1.16x elapsed=0:00:09.00    frame=  165 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:10.93 bitrate=N/A speed=1.15x elapsed=0:00:09.50    frame=  173 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:11.46 bitrate=N/A speed=1.15x elapsed=0:00:10.00    frame=  180 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:11.93 bitrate=N/A speed=1.14x elapsed=0:00:10.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg002.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-frame=  188 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:12.41 bitrate=N/A speed=1.13x elapsed=0:00:11.00    frame=  195 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:12.92 bitrate=N/A speed=1.12x elapsed=0:00:11.50    frame=  203 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:13.44 bitrate=N/A speed=1.12x elapsed=0:00:12.00    frame=  210 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:13.93 bitrate=N/A speed=1.11x elapsed=0:00:12.50    frame=  218 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:14.46 bitrate=N/A speed=1.11x elapsed=0:00:13.00    frame=  225 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:14.93 bitrate=N/A speed=1.11x elapsed=0:00:13.50    frame=  233 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:15.46 bitrate=N/A speed= 1.1x elapsed=0:00:14.00    frame=  240 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:15.93 bitrate=N/A speed= 1.1x elapsed=0:00:14.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg003.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-frame=  248 fps= 17 q=-0.0 q=-1.0 size=N/A time=00:00:16.46 bitrate=N/A speed= 1.1x elapsed=0:00:15.00    frame=  254 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:16.86 bitrate=N/A speed=1.09x elapsed=0:00:15.50    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 1562400, current: 1562400; changing to 1562401. This may result in incorrect timestamps in the output file.
-frame=  263 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:17.46 bitrate=N/A speed=1.09x elapsed=0:00:16.00    frame=  270 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:17.92 bitrate=N/A speed=1.09x elapsed=0:00:16.50    frame=  278 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:18.43 bitrate=N/A speed=1.08x elapsed=0:00:17.00    frame=  285 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:18.93 bitrate=N/A speed=1.08x elapsed=0:00:17.50    frame=  293 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:19.45 bitrate=N/A speed=1.08x elapsed=0:00:18.00    frame=  300 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:19.93 bitrate=N/A speed=1.08x elapsed=0:00:18.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg004.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-frame=  307 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:20.40 bitrate=N/A speed=1.07x elapsed=0:00:19.00    frame=  315 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:20.93 bitrate=N/A speed=1.07x elapsed=0:00:19.50    frame=  323 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:21.46 bitrate=N/A speed=1.07x elapsed=0:00:20.00    frame=  330 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:21.93 bitrate=N/A speed=1.07x elapsed=0:00:20.50    frame=  338 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:22.46 bitrate=N/A speed=1.07x elapsed=0:00:21.00    frame=  345 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:22.93 bitrate=N/A speed=1.07x elapsed=0:00:21.50    frame=  353 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:23.42 bitrate=N/A speed=1.06x elapsed=0:00:22.00    frame=  360 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:23.93 bitrate=N/A speed=1.06x elapsed=0:00:22.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg005.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-frame=  368 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:24.44 bitrate=N/A speed=1.06x elapsed=0:00:23.00    frame=  375 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:24.93 bitrate=N/A speed=1.06x elapsed=0:00:23.50    frame=  383 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:25.46 bitrate=N/A speed=1.06x elapsed=0:00:24.00    frame=  390 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:25.93 bitrate=N/A speed=1.06x elapsed=0:00:24.50    frame=  397 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:26.40 bitrate=N/A speed=1.06x elapsed=0:00:25.00    frame=  404 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:26.86 bitrate=N/A speed=1.05x elapsed=0:00:25.50    frame=  412 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:27.40 bitrate=N/A speed=1.05x elapsed=0:00:26.00    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 2516400, current: 2516400; changing to 2516401. This may result in incorrect timestamps in the output file.
-frame=  419 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:27.86 bitrate=N/A speed=1.05x elapsed=0:00:26.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg006.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-[vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 2552400, current: 2552400; changing to 2552401. This may result in incorrect timestamps in the output file.
-frame=  427 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:28.40 bitrate=N/A speed=1.05x elapsed=0:00:27.00    frame=  435 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:28.92 bitrate=N/A speed=1.05x elapsed=0:00:27.50    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 2635200, current: 2635200; changing to 2635201. This may result in incorrect timestamps in the output file.
-frame=  442 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:29.40 bitrate=N/A speed=1.05x elapsed=0:00:28.00    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 2696400, current: 2696400; changing to 2696401. This may result in incorrect timestamps in the output file.
-frame=  450 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:29.93 bitrate=N/A speed=1.05x elapsed=0:00:28.50    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 2725200, current: 2725200; changing to 2725201. This may result in incorrect timestamps in the output file.
-frame=  457 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:30.40 bitrate=N/A speed=1.05x elapsed=0:00:29.00    frame=  465 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:30.93 bitrate=N/A speed=1.05x elapsed=0:00:29.50    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 2815200, current: 2815200; changing to 2815201. This may result in incorrect timestamps in the output file.
-frame=  473 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:31.46 bitrate=N/A speed=1.05x elapsed=0:00:30.00    frame=  480 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:31.93 bitrate=N/A speed=1.05x elapsed=0:00:30.50    [hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg007.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-frame=  488 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:32.46 bitrate=N/A speed=1.05x elapsed=0:00:31.00    frame=  495 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:32.93 bitrate=N/A speed=1.05x elapsed=0:00:31.50    frame=  503 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:33.46 bitrate=N/A speed=1.05x elapsed=0:00:32.00    frame=  510 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:33.93 bitrate=N/A speed=1.04x elapsed=0:00:32.50    frame=  517 fps= 16 q=-0.0 q=-1.0 size=N/A time=00:00:34.40 bitrate=N/A speed=1.04x elapsed=0:00:33.00    [vost#1:0/copy @ 0x55c91794bcc0] Non-monotonic DTS; previous: 3139200, current: 3139200; changing to 3139201. This may result in incorrect timestamps in the output file.
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/seg008.ts' for writing
-[hls @ 0x55c9177c7780] Opening 'Streams/cam4/index.m3u8.tmp' for writing
-[out#0/hls @ 0x55c9177b2f80] video:694KiB audio:199KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-[out#1/segment @ 0x55c9179484c0] video:493KiB audio:134KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-frame=  531 fps= 16 q=-0.0 Lq=-1.0 size=N/A time=00:00:35.20 bitrate=N/A speed=1.05x elapsed=0:00:33.53    
-[aac @ 0x55c9178bccc0] Qavg: 64171.898
-[aac @ 0x55c91794cf40] Qavg: 64469.258
-Exiting normally, received signal 2.
