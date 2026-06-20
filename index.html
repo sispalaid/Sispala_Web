@@ -759,26 +759,32 @@
     `;
   });
 
-  streams.forEach(stream => {
-    const video = document.getElementById(`video-${stream.id}`);
-    const url = `./Streams/cam${stream.id}/index.m3u8`;
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        lowLatencyMode: true,
-        liveSyncDuration: LIVE_DELAY_SEC,
-        liveMaxLatencyDuration: LIVE_DELAY_SEC + 3,
-        backBufferLength: 0,
-        maxLiveSyncPlaybackRate: 1.5
+  let streamsInitialized = false;
+  function initializeStreams() {
+      if (streamsInitialized) return;
+      streamsInitialized = true;
+
+      streams.forEach(stream => {
+        const video = document.getElementById(`video-${stream.id}`);
+        const url = `./Streams/cam${stream.id}/index.m3u8`;
+        if (Hls.isSupported()) {
+          const hls = new Hls({
+            lowLatencyMode: true,
+            liveSyncDuration: LIVE_DELAY_SEC,
+            liveMaxLatencyDuration: LIVE_DELAY_SEC + 3,
+            backBufferLength: 0,
+            maxLiveSyncPlaybackRate: 1.5
+          });
+          hls.loadSource(url);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            video.play().catch(() => null);
+            applyLiveDelay(video);
+            setInterval(() => applyLiveDelay(video), 2000);
+          });
+        }
       });
-      hls.loadSource(url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => null);
-        applyLiveDelay(video);
-        setInterval(() => applyLiveDelay(video), 2000);
-      });
-    }
-  });
+  }
 
   const historyPlayer = document.getElementById('historyPlayer');
   const fileListDiv = document.getElementById('fileList');
@@ -1356,6 +1362,9 @@ async function deleteExistingAccount() {
   function applyPermissions(role) {
       document.getElementById('login-overlay').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
+      
+      // Initialize video streams only after logging in
+      initializeStreams();
       
       const alarmBtn = document.getElementById('alarmToggle');
       const superadminPanel = document.getElementById('superadmin-panel');
