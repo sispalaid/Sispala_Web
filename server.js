@@ -47,12 +47,12 @@ const USERS_FILE = path.join(__dirname, 'users.json');
 // Helper internal untuk membaca data users dari file JSON secara real-time
 function readUsers() {
     if (!fs.existsSync(USERS_FILE)) {
-        // Jika file belum ada, otomatis buat baru dengan akun default bawaan Anda
         const defaultUsers = [
-            { username: 'superadmin', password: 'superpassword', role: 'superadmin' }, 
-            { username: 'Sispala', password: 'rezacoli', role: 'admin' },
-            { username: 'warga_admin', password: 'admin', role: 'admin' },
-            { username: 'warga', password: 'sehatselalu', role: 'guest' }
+            { 
+                username: process.env.DEFAULT_ADMIN_USER || 'admin', 
+                password: process.env.DEFAULT_ADMIN_PASSWORD || 'admin_password_change_me', 
+                role: 'superadmin' 
+            }
         ];
         fs.writeFileSync(USERS_FILE, JSON.stringify(defaultUsers, null, 2));
         return defaultUsers;
