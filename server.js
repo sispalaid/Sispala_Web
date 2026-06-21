@@ -485,8 +485,11 @@ app.get('/api/recordings/:cam', (req, res) => {
 });
 
 const preferredMounts = ['/home/sispala/archive', '/mnt/ext'];
-let lastRecSizeBytes = null;
-let lastSampleMs = null;
+let cachedStorageStats = null;
+let storageHistory = [];
+const MAX_HISTORY = 12; // 12 samples * 10 seconds = 120 seconds (2 minutes) window
+let cachedRecordingsBytes = {};
+let lastDuTime = {};
 
 function readMounts() {
     const data = fs.readFileSync('/proc/mounts', 'utf8');
@@ -636,14 +639,19 @@ async function getDiskStatsForRoot(root) {
         }
     }
 
-    let recSizeBytes = 0;
-    if (hasRecordings) {
+    let recSizeBytes = cachedRecordingsBytes[root.id] || 0;
+    const now = Date.now();
+    const shouldRunDu = !lastDuTime[root.id] || (now - lastDuTime[root.id] > 30000); // 30 seconds cache
+
+    if (hasRecordings && shouldRunDu) {
         const duCmd = `du -sb "${recordingsPath}"`;
         try {
             const duRaw = await execCommand(duCmd);
             const duParts = duRaw.trim().split(/\s+/);
             recSizeBytes = Number(duParts[0]);
             if (Number.isNaN(recSizeBytes)) recSizeBytes = 0;
+            cachedRecordingsBytes[root.id] = recSizeBytes;
+            lastDuTime[root.id] = now;
         } catch (err) {
             console.error(`Failed to run du for ${recordingsPath}:`, err.message);
         }
@@ -682,15 +690,31 @@ async function getStorageStats() {
     );
 
     const nowMs = Date.now();
-    let writeRateBps = null;
-    if (lastRecSizeBytes !== null && lastSampleMs !== null) {
-        const deltaBytes = totals.recordingsBytes - lastRecSizeBytes;
-        const deltaSeconds = Math.max((nowMs - lastSampleMs) / 1000, 1e-6);
-        writeRateBps = Math.max(deltaBytes / deltaSeconds, 0);
+    const currentRecordingsBytes = totals.recordingsBytes;
+
+    storageHistory.push({ timestamp: nowMs, recordingsBytes: currentRecordingsBytes });
+    if (storageHistory.length > MAX_HISTORY) {
+        storageHistory.shift();
     }
 
-    lastRecSizeBytes = totals.recordingsBytes;
-    lastSampleMs = nowMs;
+    let writeRateBps = 0;
+    if (storageHistory.length > 1) {
+        let totalPositiveBytes = 0;
+        let totalPositiveSeconds = 0;
+        for (let i = 1; i < storageHistory.length; i++) {
+            const deltaBytes = storageHistory[i].recordingsBytes - storageHistory[i - 1].recordingsBytes;
+            const deltaSeconds = (storageHistory[i].timestamp - storageHistory[i - 1].timestamp) / 1000;
+            if (deltaSeconds > 0) {
+                if (deltaBytes >= 0) {
+                    totalPositiveBytes += deltaBytes;
+                    totalPositiveSeconds += deltaSeconds;
+                }
+            }
+        }
+        if (totalPositiveSeconds > 0) {
+            writeRateBps = totalPositiveBytes / totalPositiveSeconds;
+        }
+    }
 
     let etaSeconds = null;
     if (writeRateBps && writeRateBps > 0 && totals.availBytes > 0) {
@@ -721,11 +745,28 @@ async function getStorageStats() {
     };
 }
 
+async function updateStorageStats() {
+    try {
+        cachedStorageStats = await getStorageStats();
+    } catch (err) {
+        console.error('Failed to update storage stats in background:', err.message);
+    }
+}
+
+function startStorageMonitor() {
+    // Run initial update immediately
+    updateStorageStats();
+    // Schedule background updates every 10 seconds
+    setInterval(updateStorageStats, 10000);
+}
+
 // --- API: Storage Stats (Capacity + Throughput + ETA) ---
 app.get('/api/storage-stats', async (req, res) => {
     try {
-        const stats = await getStorageStats();
-        res.json(stats);
+        if (!cachedStorageStats) {
+            await updateStorageStats();
+        }
+        res.json(cachedStorageStats);
     } catch (err) {
         res.status(500).json({ error: 'Failed to read storage stats' });
     }
@@ -754,6 +795,7 @@ io.on('connection', (socket) => {
 
 // --- START SERVER ---
 const PORT = 8000;
+startStorageMonitor();
 http.listen(PORT, () => {
     console.log(`CCTV Monitoring Server berjalan di http://localhost:${PORT}`);
 });
