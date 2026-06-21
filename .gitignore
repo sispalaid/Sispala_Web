@@ -4,3 +4,6 @@ __pycache__/
 *.log
 Streams/
 Recordings/
+users.json
+login_logs.json
+.env

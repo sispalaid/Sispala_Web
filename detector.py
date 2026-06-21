@@ -11,8 +11,10 @@ sio.connect('http://localhost:3000') # Sesuaikan port server kamu
 model_path = "path/ke/model/yolov8n.onnx" # ISI PATH MODEL DI SINI
 session = ort.InferenceSession(model_path)
 
+import os
+
 # Buka Stream RTSP
-rtsp_url = "rtsp://admin:sispala-RC1@192.168.0.2:554/stream1"
+rtsp_url = os.environ.get("CAM1_RTSP_URL", "rtsp://admin:password@192.168.0.x:554/stream1")
 cap = cv2.VideoCapture(rtsp_url)
 
 def preprocess(frame):

@@ -6,6 +6,25 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 
+// Load environment variables from .env file manually
+const dotenvPath = path.join(__dirname, '.env');
+if (fs.existsSync(dotenvPath)) {
+    const envConfig = fs.readFileSync(dotenvPath, 'utf8');
+    envConfig.split('\n').forEach(line => {
+        const match = line.trim().match(/^([\w.-]+)\s*=\s*(.*)?\s*$/);
+        if (match) {
+            const key = match[1];
+            let value = match[2] ? match[2].trim() : '';
+            if (value.startsWith('"') && value.endsWith('"')) {
+                value = value.substring(1, value.length - 1);
+            } else if (value.startsWith("'") && value.endsWith("'")) {
+                value = value.substring(1, value.length - 1);
+            }
+            process.env[key] = value;
+        }
+    });
+}
+
 const session = require('express-session');
 const bodyParser = require('body-parser');
 
@@ -13,7 +32,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(session({
-    secret: 'sispala-secret-key',
+    secret: process.env.SESSION_SECRET || 'sispala-secret-key-fallback',
     resave: false,
     saveUninitialized: true,
     cookie: { 

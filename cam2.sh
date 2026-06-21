@@ -4,15 +4,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR" || exit
 source ~/sispala-ai/bin/activate
 
-MODEL_PATH="/home/sispala/yolo26n.engine"
-DEVICE="cuda:0"
+# Load environment variables dynamically
+set -a
+[ -f "$SCRIPT_DIR/.env" ] && . "$SCRIPT_DIR/.env"
+set +a
+
+MODEL_PATH="${CAM2_MODEL_PATH:-/home/sispala/yolo26n.engine}"
+DEVICE="${CAM2_DEVICE:-cuda:0}"
+RTSP_URL="${CAM2_RTSP_URL:-rtsp://admin:password@192.168.0.x:554/stream1}"
 OUT_RES=""
 
 while true; do
 	RECORD_DIR=$("$SCRIPT_DIR/storage_select.sh")
 	python "$SCRIPT_DIR/yolo_rtsp_hls.py" \
 		--model "$MODEL_PATH" \
-		--source "rtsp://admin:sispala-RC2@192.168.0.11:554/stream1" \
+		--source "$RTSP_URL" \
 		--cam "cam2" \
 		--out-dir "$SCRIPT_DIR/Streams" \
 		--record-dir "$RECORD_DIR" \
