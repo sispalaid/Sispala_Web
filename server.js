@@ -678,16 +678,29 @@ async function getStorageStats() {
     const roots = getRecordingRoots();
     const disks = await Promise.all(roots.map((root) => getDiskStatsForRoot(root)));
 
-    const totals = disks.reduce(
-        (acc, disk) => {
-            acc.sizeBytes += disk.sizeBytes;
-            acc.usedBytes += disk.usedBytes;
-            acc.availBytes += disk.availBytes;
-            acc.recordingsBytes += disk.recordingsBytes;
-            return acc;
-        },
-        { sizeBytes: 0, usedBytes: 0, availBytes: 0, recordingsBytes: 0 }
-    );
+    const totals = { sizeBytes: 0, usedBytes: 0, availBytes: 0, recordingsBytes: 0 };
+    const seenSources = new Set();
+
+    for (const disk of disks) {
+        totals.recordingsBytes += disk.recordingsBytes;
+
+        const source = disk.source;
+        if (disk.isMounted && source && source !== 'unknown' && source !== 'local') {
+            if (!seenSources.has(source)) {
+                seenSources.add(source);
+                totals.sizeBytes += disk.sizeBytes;
+                totals.usedBytes += disk.usedBytes;
+                totals.availBytes += disk.availBytes;
+            }
+        } else if (source === 'local') {
+            if (!seenSources.has(source)) {
+                seenSources.add(source);
+                totals.sizeBytes += disk.sizeBytes;
+                totals.usedBytes += disk.usedBytes;
+                totals.availBytes += disk.availBytes;
+            }
+        }
+    }
 
     const nowMs = Date.now();
     const currentRecordingsBytes = totals.recordingsBytes;
