@@ -4,10 +4,11 @@
   <title>SISPALA WEB CCTV MONITORING</title>
   
   <link rel="icon" type="image/png" href="./Logo_Sispala.png">
+  <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&family=Space+Grotesk:wght@400;600;700&display=swap" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.7/hls.min.js"></script>
-  <style>
+  <!-- <style>
     :root {
       --bg-1: #0c111b;
       --bg-2: #141a26;
@@ -426,7 +427,7 @@
         padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer;
     }
     #main-content { display: none; }
-  </style>
+  </style> -->
 </head>
 <body>
 <div id="login-overlay" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--bg-1);">
@@ -483,7 +484,6 @@
           <option value="" disabled selected>Select Role</option>
           <option value="guest">Guest</option>
           <option value="admin">Admin</option>
-          <option value="superadmin">Superadmin</option>
         </select>
         <button type="submit" style="width: auto; padding: 10px 20px; background: var(--accent-1); color:#000; font-weight:bold; margin-top:0; border-radius: 6px; cursor: pointer;">Create Account</button>
       </form>
