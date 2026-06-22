@@ -146,19 +146,24 @@ app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
     const users = readUsers();
-    
-    // PERBAIKAN: Gunakan .toLowerCase() pada kedua sisi agar username fleksibel besar/kecil hurufnya
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     
     if (user) {
         let isValidPassword = false;
-        
-        try {
-            // Coba dekripsi jika password dalam format Base64
-            const decrypted = decryptPassword(user.password);
-            isValidPassword = (decrypted === password);
-        } catch (e) {
-            // FALLBACK: Jika gagal (seperti akun superadmin lama Anda), cek teks aslinya langsung
+
+        // Cek apakah password di database merupakan format Base64 (panjangnya kelipatan 4 & polanya pas)
+        const isBase64 = /^[a-zA-Z0-9+/]+={0,2}$/.test(user.password) && (user.password.length % 4 === 0);
+
+        if (isBase64) {
+            try {
+                // Jika formatnya Base64, dekripsi dulu baru cocokkan
+                const decrypted = decryptPassword(user.password);
+                isValidPassword = (decrypted === password);
+            } catch (e) {
+                isValidPassword = (user.password === password);
+            }
+        } else {
+            // Jika BUKAN Base64 (pasti akun superadmin lama Anda), langsung cocokkan teks asli
             isValidPassword = (user.password === password);
         }
 
