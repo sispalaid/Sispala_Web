@@ -1536,37 +1536,49 @@ async function actionDeleteAccount(username) {
   }
 
   async function createNewAccount() {
-      const userEl = document.getElementById('new-username');
-      const passEl = document.getElementById('new-password');
-      const roleEl = document.getElementById('new-role');
-      const msgEl = document.getElementById('create-account-msg');
+    const userEl = document.getElementById('new-username');
+    const passEl = document.getElementById('new-password');
+    const roleEl = document.getElementById('new-role');
+    const msgEl = document.getElementById('create-account-msg');
 
-      try {
-          const res = await fetch('/api/create-account', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  newUsername: userEl.value,
-                  newPassword: passEl.value,
-                  newRole: roleEl.value
-              })
-          });
-          const data = await res.json();
-          if (data.success) {
-              msgEl.style.color = '#2ecc71';
-              msgEl.innerText = data.message;
-              userEl.value = '';
-              passEl.value = '';
-              roleEl.value = '';
-          } else {
-              msgEl.style.color = '#e74c3c';
-              msgEl.innerText = data.message;
-          }
-      } catch (err) {
-          msgEl.style.color = '#e74c3c';
-          msgEl.innerText = 'Gagal terhubung ke server.';
-      }
-  }
+    try {
+        const res = await fetch('/api/create-account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                newUsername: userEl.value,
+                newPassword: passEl.value,
+                newRole: roleEl.value
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            msgEl.style.color = '#2ecc71';
+            msgEl.innerText = data.message;
+            
+            // Bersihkan form input
+            userEl.value = '';
+            passEl.value = '';
+            roleEl.value = '';
+
+            // ========================================================
+            // TAMBAHKAN BARIS INI AGAR TABEL LANGSUNG UPDATE AUTOMATIS
+            // ========================================================
+            if (typeof fetchSuperadminUsers === 'function') {
+                fetchSuperadminUsers(); 
+            } else if (typeof fetchUsersList === 'function') {
+                fetchUsersList();
+            }
+            
+        } else {
+            msgEl.style.color = '#e74c3c';
+            msgEl.innerText = data.message;
+        }
+    } catch (err) {
+        msgEl.style.color = '#e74c3c';
+        msgEl.innerText = 'Gagal terhubung ke server.';
+    }
+}
 
   // BARU: Fungsi mengirim permintaan modifikasi password / role akun ke API Server
   async function modifyExistingAccount() {
