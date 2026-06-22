@@ -202,6 +202,7 @@ def start_ffmpeg(
         '-i', '-',
     ]
 
+    # --- Output 1: Live HLS Stream (Hardware Encoding) ---
     if encoder == 'qsv':
         cmd += [
             '-vf', f'fps={encode_fps},format=nv12,hwupload=extra_hw_frames=64',
@@ -223,6 +224,24 @@ def start_ffmpeg(
         '-hls_flags', 'delete_segments+independent_segments',
         '-hls_segment_filename', segment_pattern,
         hls_path,
+    ]
+
+    # --- Output 2: MP4 recordings (Hardware Encoding) ---
+    if encoder == 'qsv':
+        cmd += [
+            '-vf', f'fps={encode_fps},format=nv12,hwupload=extra_hw_frames=64',
+            '-c:v', 'h264_qsv',
+        ]
+    else:
+        cmd += [
+            '-vf', f'fps={encode_fps},format=nv12,hwupload',
+            '-c:v', 'h264_vaapi',
+        ]
+
+    cmd += [
+        '-g', str(gop),
+        '-keyint_min', str(gop),
+        '-sc_threshold', '0',
         '-f', 'segment',
         '-segment_time', str(segment_time),
         '-strftime', '1',
