@@ -1114,7 +1114,7 @@ app.post('/api/audio/play', requireSuperadmin, (req, res) => {
         panFilter = `pan=stereo|c0=0|c1=c0,volume=${volumeScale}`;
     }
 
-    const ffmpegCommand = `ffmpeg -re -i "${filePath}" -af "${panFilter}" -f alsa default -nodisp -autoexit`;
+    const ffmpegCommand = `ffmpeg -re -i "${filePath}" -af "${panFilter}" -f alsa default`;
     console.log(`Menjalankan broadcast: ${ffmpegCommand}`);
 
     const proc = exec(ffmpegCommand, (error) => {
@@ -1199,7 +1199,7 @@ app.get('/api/trigger-alarm', (req, res) => {
         }
 
         const volumeScale = (config.masterVolume || 100) / 100;
-        const ffmpegCommand = `ffmpeg -re -i "${alarmFile}" -af "pan=stereo|c0=c0|c1=0,volume=${volumeScale}" -f alsa default -nodisp -autoexit`;
+        const ffmpegCommand = `ffmpeg -re -i "${alarmFile}" -af "pan=stereo|c0=c0|c1=0,volume=${volumeScale}" -f alsa default`;
 
         exec(ffmpegCommand, (error) => {
             if (error) console.error(`[FFmpeg CH1 Error]: ${error.message}`);
@@ -1224,7 +1224,7 @@ app.get('/api/trigger-sirine', (req, res) => {
         }
 
         const volumeScale = (config.masterVolume || 100) / 100;
-        const ffmpegCommand = `ffmpeg -re -i "${sirineFile}" -af "pan=stereo|c0=0|c1=c0,volume=${volumeScale}" -f alsa default -nodisp -autoexit`;
+        const ffmpegCommand = `ffmpeg -re -i "${sirineFile}" -af "pan=stereo|c0=0|c1=c0,volume=${volumeScale}" -f alsa default`;
 
         exec(ffmpegCommand, (error) => {
             if (error) console.error(`[FFmpeg CH2 Error]: ${error.message}`);
