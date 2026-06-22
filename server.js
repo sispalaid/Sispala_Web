@@ -1084,6 +1084,25 @@ let activeBroadcast = {
     isPaused: false
 };
 
+// Function to stop current broadcast and wait briefly to release audio resources
+function stopActiveBroadcast() {
+    return new Promise((resolve) => {
+        if (activeBroadcast.proc) {
+            try {
+                activeBroadcast.proc.kill('SIGKILL');
+            } catch (e) {}
+            setTimeout(() => {
+                activeBroadcast.proc = null;
+                activeBroadcast.filename = null;
+                activeBroadcast.isPaused = false;
+                resolve();
+            }, 250); // 250ms delay for OS to clean up process and release ALSA device
+        } else {
+            resolve();
+        }
+    });
+}
+
 // 6. Play broadcast on server speakers
 app.post('/api/audio/play', requireSuperadmin, (req, res) => {
     const { filename, channel } = req.body;
@@ -1096,43 +1115,38 @@ app.post('/api/audio/play', requireSuperadmin, (req, res) => {
         return res.status(404).json({ error: 'File audio tidak ditemukan di server.' });
     }
 
-    // Stop any existing broadcast
-    if (activeBroadcast.proc) {
-        try {
-            activeBroadcast.proc.kill('SIGKILL');
-        } catch (e) {}
-    }
-
     const config = readAudioConfig();
     const volumeScale = (config.masterVolume || 100) / 100;
     
     // Choose channel filter: stereo, left, right
     let panFilter = `volume=${volumeScale}`;
     if (channel === 'left') {
-        panFilter = `pan=stereo|c0=c0|c1=0,volume=${volumeScale}`;
+        panFilter = `pan=stereo|c0=c0|c1=0*c0,volume=${volumeScale}`;
     } else if (channel === 'right') {
-        panFilter = `pan=stereo|c0=0|c1=c0,volume=${volumeScale}`;
+        panFilter = `pan=stereo|c0=0*c0|c1=c0,volume=${volumeScale}`;
     }
 
     const ffmpegCommand = `ffmpeg -re -i "${filePath}" -af "${panFilter}" -f alsa default`;
     console.log(`Menjalankan broadcast: ${ffmpegCommand}`);
 
-    const proc = exec(ffmpegCommand, (error) => {
-        if (error && !proc.killed) {
-            console.error(`[FFmpeg Broadcast Error]: ${error.message}`);
-        }
-        if (activeBroadcast.proc === proc) {
-            activeBroadcast.proc = null;
-            activeBroadcast.filename = null;
-            activeBroadcast.isPaused = false;
-        }
+    stopActiveBroadcast().then(() => {
+        const proc = exec(ffmpegCommand, (error) => {
+            if (error && !proc.killed) {
+                console.error(`[FFmpeg Broadcast Error]: ${error.message}`);
+            }
+            if (activeBroadcast.proc === proc) {
+                activeBroadcast.proc = null;
+                activeBroadcast.filename = null;
+                activeBroadcast.isPaused = false;
+            }
+        });
+
+        activeBroadcast.proc = proc;
+        activeBroadcast.filename = filename;
+        activeBroadcast.isPaused = false;
+
+        res.json({ success: true, message: `Memulai broadcast "${filename}"...`, filename });
     });
-
-    activeBroadcast.proc = proc;
-    activeBroadcast.filename = filename;
-    activeBroadcast.isPaused = false;
-
-    res.json({ success: true, message: `Memulai broadcast "${filename}"...`, filename });
 });
 
 // 7. Pause broadcast (SIGSTOP)
@@ -1199,10 +1213,23 @@ app.get('/api/trigger-alarm', (req, res) => {
         }
 
         const volumeScale = (config.masterVolume || 100) / 100;
-        const ffmpegCommand = `ffmpeg -re -i "${alarmFile}" -af "pan=stereo|c0=c0|c1=0,volume=${volumeScale}" -f alsa default`;
+        const ffmpegCommand = `ffmpeg -re -i "${alarmFile}" -af "pan=stereo|c0=c0|c1=0*c0,volume=${volumeScale}" -f alsa default`;
 
-        exec(ffmpegCommand, (error) => {
-            if (error) console.error(`[FFmpeg CH1 Error]: ${error.message}`);
+        stopActiveBroadcast().then(() => {
+            const proc = exec(ffmpegCommand, (error) => {
+                if (error && !proc.killed) {
+                    console.error(`[FFmpeg CH1 Error]: ${error.message}`);
+                }
+                if (activeBroadcast.proc === proc) {
+                    activeBroadcast.proc = null;
+                    activeBroadcast.filename = null;
+                    activeBroadcast.isPaused = false;
+                }
+            });
+
+            activeBroadcast.proc = proc;
+            activeBroadcast.filename = config.alarmFile;
+            activeBroadcast.isPaused = false;
         });
 
         res.json({ success: true, message: "Alarm (Channel 1) berhasil dibunyikan!" });
@@ -1224,10 +1251,23 @@ app.get('/api/trigger-sirine', (req, res) => {
         }
 
         const volumeScale = (config.masterVolume || 100) / 100;
-        const ffmpegCommand = `ffmpeg -re -i "${sirineFile}" -af "pan=stereo|c0=0|c1=c0,volume=${volumeScale}" -f alsa default`;
+        const ffmpegCommand = `ffmpeg -re -i "${sirineFile}" -af "pan=stereo|c0=0*c0|c1=c0,volume=${volumeScale}" -f alsa default`;
 
-        exec(ffmpegCommand, (error) => {
-            if (error) console.error(`[FFmpeg CH2 Error]: ${error.message}`);
+        stopActiveBroadcast().then(() => {
+            const proc = exec(ffmpegCommand, (error) => {
+                if (error && !proc.killed) {
+                    console.error(`[FFmpeg CH2 Error]: ${error.message}`);
+                }
+                if (activeBroadcast.proc === proc) {
+                    activeBroadcast.proc = null;
+                    activeBroadcast.filename = null;
+                    activeBroadcast.isPaused = false;
+                }
+            });
+
+            activeBroadcast.proc = proc;
+            activeBroadcast.filename = config.sirineFile;
+            activeBroadcast.isPaused = false;
         });
 
         res.json({ success: true, message: "Sirine (Channel 2) berhasil dibunyikan!" });
