@@ -811,10 +811,15 @@
   });
 
   // Fungsi Baru untuk Auto-Login sebagai Guest
+  // Fungsi Auto-Login sebagai Guest yang Sudah Diperbaiki
 async function loginAsGuest() {
-    const msgEl = document.getElementById('login-msg');
-    msgEl.style.color = 'var(--accent-2)';
-    msgEl.textContent = 'Menghubungkan sebagai Guest...';
+    // Menyesuaikan dengan ID element pesan login bawaan di index.html Anda (error-message)
+    const msgEl = document.getElementById('error-message') || document.getElementById('login-msg');
+    
+    if (msgEl) {
+        msgEl.style.color = 'var(--accent-2)';
+        msgEl.textContent = 'Menghubungkan sebagai Guest...';
+    }
 
     try {
         // Menggunakan akun guest default (username: warga, password: sehatselalu)
@@ -826,16 +831,22 @@ async function loginAsGuest() {
         const data = await res.json();
 
         if (data.success) {
-            msgEl.style.color = 'var(--accent-1)';
-            msgEl.textContent = 'Login Guest Berhasil! Memuat halaman...';
+            if (msgEl) {
+                msgEl.style.color = 'var(--accent-1)';
+                msgEl.textContent = 'Login Guest Berhasil! Memuat halaman...';
+            }
             window.location.reload();
         } else {
-            msgEl.style.color = 'var(--accent-3)';
-            msgEl.textContent = data.error || 'Gagal login sebagai Guest.';
+            if (msgEl) {
+                msgEl.style.color = 'var(--accent-3)';
+                msgEl.textContent = data.error || 'Gagal login sebagai Guest.';
+            }
         }
     } catch (e) {
-        msgEl.style.color = 'var(--accent-3)';
-        msgEl.textContent = 'Terjadi kesalahan jaringan.';
+        if (msgEl) {
+            msgEl.style.color = 'var(--accent-3)';
+            msgEl.textContent = 'Terjadi kesalahan jaringan.';
+        }
     }
 }
 
