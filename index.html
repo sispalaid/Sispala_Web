@@ -116,6 +116,71 @@
       </div>
     </div>
 
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
+      <h4 style="color: var(--accent-1); font-size: 12px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">📢 AUDIO LIBRARY & SPEAKER CONSOLE</h4>
+      
+      <!-- Part 1: Default Audio Settings (Volume + Alarm/Sirine Selector) -->
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid var(--stroke-2); padding-bottom: 15px;">
+        <div style="flex: 1.5; min-width: 250px;">
+          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">📢 GLOBAL SPEAKER MASTER VOLUME</label>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <input type="range" id="masterVolumeSlider" min="0" max="100" value="100" style="flex: 1; cursor: pointer; height: 6px; background: var(--stroke-2); border-radius: 999px;" onchange="updateAudioConfig()">
+            <span id="volumePercentVal" style="font-size: 12px; color: var(--accent-1); font-weight: bold; width: 40px; text-align: right;">100%</span>
+          </div>
+        </div>
+        
+        <div style="flex: 1; min-width: 180px;">
+          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">🔔 DEFAULT ALARM AUDIO (CH 1)</label>
+          <select id="selectAlarmAudio" style="width: 100%; margin-bottom: 0;" onchange="updateAudioConfig()">
+            <option value="Alarm.mpeg">Alarm.mpeg (Default)</option>
+          </select>
+        </div>
+        
+        <div style="flex: 1; min-width: 180px;">
+          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">🚨 DEFAULT SIRINE AUDIO (CH 2)</label>
+          <select id="selectSirineAudio" style="width: 100%; margin-bottom: 0;" onchange="updateAudioConfig()">
+            <option value="Alarm.mpeg">Alarm.mpeg (Default)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Part 2: Upload custom audio file -->
+      <div style="margin-bottom: 20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--stroke-2); border-radius: 8px; padding: 15px;">
+        <h5 style="color: #9bc1ff; font-size: 11px; margin-top: 0; margin-bottom: 8px; font-weight: 600;">UPLOAD CUSTOM AUDIO FILE (.mp3, .wav, .mpeg, .ogg, .m4a)</h5>
+        <form id="audioUploadForm" onsubmit="event.preventDefault(); uploadAudioFile();" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <input type="file" id="audioFileInput" accept=".mp3,.wav,.mpeg,.ogg,.m4a,.mp4" required style="flex: 1; min-width: 200px; padding: 5px; background: transparent; border: 1px solid var(--stroke-2); border-radius: 4px; color: #fff; font-size: 12px;">
+          <button type="submit" id="btnAudioUpload" style="width: auto; padding: 8px 16px; background: var(--accent-2); color: #000; font-weight: bold; margin-top: 0; border-radius: 6px; cursor: pointer; border: none; font-size: 12px;">Upload Audio</button>
+        </form>
+        <div id="audio-upload-msg" style="font-size: 11px; margin-top: 8px; text-align: left;"></div>
+      </div>
+
+      <!-- Part 3: Audio Files List -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h5 style="color: #9bc1ff; font-size: 11px; margin: 0; font-weight: 600;">AUDIO LIBRARY LIST</h5>
+        <button onclick="fetchAudioLibrary()" style="font-size: 9px; padding: 2px 6px; background: var(--stroke-2); border: none; border-radius: 4px; color: #fff; cursor: pointer;">Refresh Library</button>
+      </div>
+      
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
+        <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Size</th>
+              <th>Channel Playback</th>
+              <th style="text-align: center; width: 260px;">Speaker Actions</th>
+              <th style="text-align: center; width: 80px;">Delete</th>
+            </tr>
+          </thead>
+          <tbody id="table-audio-body">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--ink-2); padding: 15px;">Memuat library audio...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="audio-console-msg" style="font-size: 11px; margin-top: 8px; text-align: center; font-weight: bold; color: var(--accent-1); min-height: 15px;"></div>
+    </div>
+
   </div>
 </div>
 
@@ -1075,6 +1140,272 @@ async function actionDeleteAccount(username) {
     fetchStorageCleanupLogs();
   }
 
+  // --- AUDIO LIBRARY CONSOLE SCRIPT ---
+  async function fetchAudioLibrary() {
+    const tbody = document.getElementById('table-audio-body');
+    const selectAlarm = document.getElementById('selectAlarmAudio');
+    const selectSirine = document.getElementById('selectSirineAudio');
+    if (!tbody) return;
+
+    try {
+      const res = await fetch('/api/audio/list');
+      const data = await res.json();
+      
+      if (data.success && Array.isArray(data.files)) {
+        tbody.innerHTML = '';
+        
+        // Save current selections
+        const prevAlarm = selectAlarm ? selectAlarm.value : 'Alarm.mpeg';
+        const prevSirine = selectSirine ? selectSirine.value : 'Alarm.mpeg';
+        
+        // Reset selectors
+        if (selectAlarm) selectAlarm.innerHTML = '';
+        if (selectSirine) selectSirine.innerHTML = '';
+
+        if (data.files.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--ink-2); padding: 15px;">Belum ada file audio di library.</td></tr>';
+          return;
+        }
+
+        data.files.forEach((file, index) => {
+          // Populate selectors
+          if (selectAlarm) {
+            const opt = document.createElement('option');
+            opt.value = file.filename;
+            opt.textContent = file.filename + (file.isDefault ? ' (Default)' : '');
+            selectAlarm.appendChild(opt);
+          }
+          if (selectSirine) {
+            const opt = document.createElement('option');
+            opt.value = file.filename;
+            opt.textContent = file.filename + (file.isDefault ? ' (Default)' : '');
+            selectSirine.appendChild(opt);
+          }
+
+          // Populate table row
+          const tr = document.createElement('tr');
+          tr.style.borderBottom = '1px solid var(--stroke-1)';
+          tr.innerHTML = `
+            <td style="padding: 8px 6px; font-weight: bold; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              ${file.filename} ${file.isDefault ? '<span style="color:var(--accent-1); font-size:10px; margin-left: 5px;">(Default)</span>' : ''}
+            </td>
+            <td style="padding: 8px 6px; color: var(--ink-2);">${formatBytes(file.size)}</td>
+            <td style="padding: 8px 6px;">
+              <select id="channel-${index}" style="padding: 2px 4px; font-size: 11px; margin-bottom: 0; width: 100%;">
+                <option value="stereo">Stereo (CH 1 + CH 2)</option>
+                <option value="left">Left Only (CH 1)</option>
+                <option value="right">Right Only (CH 2)</option>
+              </select>
+            </td>
+            <td style="padding: 8px 6px; text-align: center; display: flex; gap: 4px; justify-content: center;">
+              <button onclick="playAudioOnSpeakers('${file.filename}', 'channel-${index}')" style="padding: 3px 6px; background: var(--accent-1); color: #000; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Play 🔊</button>
+              <button onclick="pauseAudioOnSpeakers()" style="padding: 3px 6px; background: var(--accent-2); color: #000; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Pause ⏸️</button>
+              <button onclick="resumeAudioOnSpeakers()" style="padding: 3px 6px; background: #9bc1ff; color: #000; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Resume ▶️</button>
+              <button onclick="stopAudioOnSpeakers()" style="padding: 3px 6px; background: var(--accent-3); color: #fff; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Stop ⏹️</button>
+            </td>
+            <td style="padding: 8px 6px; text-align: center;">
+              <button onclick="deleteAudioFile('${file.filename}')" ${file.isDefault ? 'disabled style="opacity:0.3; cursor:not-allowed;"' : ''} style="padding: 3px 6px; background: transparent; border: 1px solid var(--accent-3); color: var(--accent-3); border-radius: 4px; font-size: 11px; cursor: pointer;">Delete 🗑️</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        });
+
+        // Restore selections if still available in list
+        if (selectAlarm) {
+          const hasPrev = Array.from(selectAlarm.options).some(opt => opt.value === prevAlarm);
+          selectAlarm.value = hasPrev ? prevAlarm : 'Alarm.mpeg';
+        }
+        if (selectSirine) {
+          const hasPrev = Array.from(selectSirine.options).some(opt => opt.value === prevSirine);
+          selectSirine.value = hasPrev ? prevSirine : 'Alarm.mpeg';
+        }
+      }
+    } catch (e) {
+      console.error("Gagal memuat audio library:", e);
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: red; padding: 15px;">Gagal memuat library dari server.</td></tr>';
+    }
+  }
+
+  async function fetchAudioConfig() {
+    try {
+      const res = await fetch('/api/audio/config');
+      const data = await res.json();
+      if (data.success && data.config) {
+        const selectAlarm = document.getElementById('selectAlarmAudio');
+        const selectSirine = document.getElementById('selectSirineAudio');
+        const volumeSlider = document.getElementById('masterVolumeSlider');
+        const volumeText = document.getElementById('volumePercentVal');
+
+        if (selectAlarm && data.config.alarmFile) selectAlarm.value = data.config.alarmFile;
+        if (selectSirine && data.config.sirineFile) selectSirine.value = data.config.sirineFile;
+        if (volumeSlider && data.config.masterVolume !== undefined) {
+          volumeSlider.value = data.config.masterVolume;
+          if (volumeText) volumeText.textContent = `${data.config.masterVolume}%`;
+        }
+      }
+    } catch (e) {
+      console.error("Gagal mengambil konfigurasi audio:", e);
+    }
+  }
+
+  async function updateAudioConfig() {
+    const alarmFile = document.getElementById('selectAlarmAudio')?.value;
+    const sirineFile = document.getElementById('selectSirineAudio')?.value;
+    const masterVolume = document.getElementById('masterVolumeSlider')?.value;
+    const volumeText = document.getElementById('volumePercentVal');
+    
+    if (volumeText && masterVolume !== undefined) {
+      volumeText.textContent = `${masterVolume}%`;
+    }
+
+    try {
+      await fetch('/api/audio/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alarmFile, sirineFile, masterVolume })
+      });
+    } catch (e) {
+      console.error("Gagal memperbarui konfigurasi audio:", e);
+    }
+  }
+
+  async function uploadAudioFile() {
+    const fileInput = document.getElementById('audioFileInput');
+    const msgEl = document.getElementById('audio-upload-msg');
+    const btn = document.getElementById('btnAudioUpload');
+    if (!fileInput || !fileInput.files[0] || !msgEl) return;
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('audioFile', file);
+
+    msgEl.style.color = '#fff';
+    msgEl.textContent = 'Mengunggah file audio...';
+    if (btn) btn.disabled = true;
+
+    try {
+      const res = await fetch('/api/audio/upload', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        msgEl.style.color = '#2ecc71';
+        msgEl.textContent = data.message;
+        fileInput.value = ''; // Clear file input
+        fetchAudioLibrary();
+      } else {
+        msgEl.style.color = '#e74c3c';
+        msgEl.textContent = data.error || 'Gagal mengunggah file.';
+      }
+    } catch (e) {
+      msgEl.style.color = '#e74c3c';
+      msgEl.textContent = 'Terjadi kesalahan saat mengunggah.';
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function playAudioOnSpeakers(filename, selectId) {
+    const channel = document.getElementById(selectId)?.value || 'stereo';
+    const msgEl = document.getElementById('audio-console-msg');
+    if (msgEl) {
+      msgEl.style.color = 'var(--accent-1)';
+      msgEl.textContent = `Broadcasting "${filename}" (${channel.toUpperCase()})...`;
+    }
+    try {
+      const res = await fetch('/api/audio/play', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, channel })
+      });
+      const data = await res.json();
+      if (!data.success && msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = data.error || 'Gagal memulai broadcast.';
+      }
+    } catch (e) {
+      if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = 'Koneksi error ke audio server.';
+      }
+    }
+  }
+
+  async function pauseAudioOnSpeakers() {
+    const msgEl = document.getElementById('audio-console-msg');
+    try {
+      const res = await fetch('/api/audio/pause', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && msgEl) {
+        msgEl.style.color = 'var(--accent-2)';
+        msgEl.textContent = 'Broadcast di-pause.';
+      } else if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = data.error || 'Gagal mem-pause broadcast.';
+      }
+    } catch (e) {
+      if (msgEl) msgEl.textContent = 'Koneksi error.';
+    }
+  }
+
+  async function resumeAudioOnSpeakers() {
+    const msgEl = document.getElementById('audio-console-msg');
+    try {
+      const res = await fetch('/api/audio/resume', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && msgEl) {
+        msgEl.style.color = 'var(--accent-1)';
+        msgEl.textContent = 'Melanjutkan broadcast...';
+      } else if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = data.error || 'Gagal melanjutkan broadcast.';
+      }
+    } catch (e) {
+      if (msgEl) msgEl.textContent = 'Koneksi error.';
+    }
+  }
+
+  async function stopAudioOnSpeakers() {
+    const msgEl = document.getElementById('audio-console-msg');
+    try {
+      const res = await fetch('/api/audio/stop', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && msgEl) {
+        msgEl.style.color = 'var(--ink-2)';
+        msgEl.textContent = 'Broadcast dihentikan.';
+      } else if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = data.error || 'Gagal menghentikan broadcast.';
+      }
+    } catch (e) {
+      if (msgEl) msgEl.textContent = 'Koneksi error.';
+    }
+  }
+
+  async function deleteAudioFile(filename) {
+    if (!confirm(`Apakah Anda yakin ingin menghapus file audio "${filename}"?`)) {
+      return;
+    }
+    const msgEl = document.getElementById('audio-console-msg');
+    try {
+      const res = await fetch(`/api/audio/${filename}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        if (msgEl) {
+          msgEl.style.color = 'var(--accent-1)';
+          msgEl.textContent = data.message || 'File berhasil dihapus.';
+        }
+        fetchAudioLibrary();
+      } else if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = data.error || 'Gagal menghapus file.';
+      }
+    } catch (e) {
+      if (msgEl) msgEl.textContent = 'Koneksi error.';
+    }
+  }
+
   function applyPermissions(role) {
       document.getElementById('login-overlay').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
@@ -1084,16 +1415,16 @@ async function actionDeleteAccount(username) {
 
       const cleanupBlock = document.getElementById('auto-cleanup-block');
       const alarmBtn = document.getElementById('alarmToggle');
-      const sirinetBtn = document.getElementById('sirineToggle');
+      const sirineBtn = document.getElementById('sirineToggle');
       const superadminPanel = document.getElementById('superadmin-panel');
       const systemLogsPanel = document.getElementById('system-logs-panel');
       
       if (role === 'admin' || role === 'superadmin') {
-          alarmBtn.style.display = 'inline-block';
-          sirinetBtn.style.display = 'inline-block'; 
+          if (alarmBtn) alarmBtn.style.display = 'inline-block'; 
+          if (sirineBtn) sirineBtn.style.display = 'inline-block';
       } else {
-          alarmBtn.style.display = 'none'; 
-          sirinetBtn.style.display = 'none';
+          if (alarmBtn) alarmBtn.style.display = 'none'; 
+          if (sirineBtn) sirineBtn.style.display = 'none';
       }
 
       if (role === 'superadmin') {
@@ -1104,6 +1435,8 @@ async function actionDeleteAccount(username) {
           fetchSystemLogs();
           fetchStorageCleanupLogs();
           updateUsernameSuggestions();
+          fetchAudioLibrary();
+          fetchAudioConfig();
       } else {
           superadminPanel.style.display = 'none';
           systemLogsPanel.style.display = 'none';
