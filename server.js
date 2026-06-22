@@ -894,13 +894,37 @@ app.get('/api/storage-stats', async (req, res) => {
 });
 
 // --- API: Trigger Alarm (Mock) ---
-app.get('/trigger-alarm', (req, res) => {
-    // DIUBAH: Mengikuti struktur role baru (Hanya role admin yang dapat memicu alarm, superadmin & guest ditolak)
-    if (req.session.user && req.session.user.role === 'admin' || req.session.user.role === 'superadmin') {
-        console.log(`Alarm dipicu oleh admin: ${req.session.user.username}`);
-        res.json({ status: "Alarm Active" });
+app.get('/api/trigger-alarm', (req, res) => {
+    if (req.session.user && (req.session.user.role === 'admin' || req.session.user.role === 'superadmin')) {
+        console.log(`Alarm CH1 dipicu oleh: ${req.session.user.username}`);
+
+        // Hanya bunyikan alarm.mpeg ke channel kiri (c0=c0), kanan dibungkam (c1=0)
+        const ffmpegCommand = `ffmpeg -re -i "./alarm.mpeg" -af "pan=stereo|c0=c0|c1=0" -f alsa default -nodisp -autoexit`;
+
+        exec(ffmpegCommand, (error) => {
+            if (error) console.error(`[FFmpeg CH1 Error]: ${error.message}`);
+        });
+
+        res.json({ success: true, message: "Alarm (Channel 1) berhasil dibunyikan!" });
     } else {
-        res.status(403).json({ error: "Unauthorized: Hanya admin dan superadmin yang bisa memicu alarm" });
+        res.status(403).json({ error: "Unauthorized: Akses ditolak." });
+    }
+});
+
+app.get('/api/trigger-sirine', (req, res) => {
+    if (req.session.user && (req.session.user.role === 'admin' || req.session.user.role === 'superadmin')) {
+        console.log(`Sirine CH2 dipicu oleh: ${req.session.user.username}`);
+
+        // Hanya bunyikan sirine.mpeg ke channel kanan (c1=c0), kiri dibungkam (c0=0)
+        const ffmpegCommand = `ffmpeg -re -i "./sirine.mpeg" -af "pan=stereo|c0=0|c1=c0" -f alsa default -nodisp -autoexit`;
+
+        exec(ffmpegCommand, (error) => {
+            if (error) console.error(`[FFmpeg CH2 Error]: ${error.message}`);
+        });
+
+        res.json({ success: true, message: "Sirine (Channel 2) berhasil dibunyikan!" });
+    } else {
+        res.status(403).json({ error: "Unauthorized: Akses ditolak." });
     }
 });
 
