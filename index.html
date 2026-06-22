@@ -1411,7 +1411,7 @@ async function deleteExistingAccount() {
       const superadminPanel = document.getElementById('superadmin-panel');
       const systemLogsPanel = document.getElementById('system-logs-panel');
       
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'superadmin') {
           alarmBtn.style.display = 'inline-block'; 
       } else {
           alarmBtn.style.display = 'none'; 
