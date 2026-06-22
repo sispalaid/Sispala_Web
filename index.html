@@ -1556,19 +1556,15 @@ async function actionDeleteAccount(username) {
             msgEl.style.color = '#2ecc71';
             msgEl.innerText = data.message;
             
-            // Bersihkan form input
+            // Bersihkan form input setelah sukses
             userEl.value = '';
             passEl.value = '';
             roleEl.value = '';
 
             // ========================================================
-            // TAMBAHKAN BARIS INI AGAR TABEL LANGSUNG UPDATE AUTOMATIS
+            // SEKARANG INI AKAN BERJALAN OTOMATIS TANPA REFRESH WEB
             // ========================================================
-            if (typeof fetchSuperadminUsers === 'function') {
-                fetchSuperadminUsers(); 
-            } else if (typeof fetchUsersList === 'function') {
-                fetchUsersList();
-            }
+            updateUsernameSuggestions(); 
             
         } else {
             msgEl.style.color = '#e74c3c';
