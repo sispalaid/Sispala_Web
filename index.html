@@ -826,7 +826,7 @@ async function loginAsGuest() {
         const res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: 'warga', password: 'sehatselalu' })
+            body: JSON.stringify({ username: 'guest', password: '123' })
         });
         const data = await res.json();
 
