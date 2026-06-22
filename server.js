@@ -788,11 +788,11 @@ app.get('/api/storage-stats', async (req, res) => {
 // --- API: Trigger Alarm (Mock) ---
 app.get('/trigger-alarm', (req, res) => {
     // DIUBAH: Mengikuti struktur role baru (Hanya role admin yang dapat memicu alarm, superadmin & guest ditolak)
-    if (req.session.user && req.session.user.role === 'admin') {
+    if (req.session.user && req.session.user.role === 'admin' || req.session.user.role === 'superadmin') {
         console.log(`Alarm dipicu oleh admin: ${req.session.user.username}`);
         res.json({ status: "Alarm Active" });
     } else {
-        res.status(403).json({ error: "Unauthorized: Hanya admin yang bisa memicu alarm" });
+        res.status(403).json({ error: "Unauthorized: Hanya admin dan superadmin yang bisa memicu alarm" });
     }
 });
 
