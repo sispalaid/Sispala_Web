@@ -429,7 +429,7 @@
   </style>
 </head>
 <body>
-<div id="login-overlay">
+<div id="login-overlay" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--bg-1);">
   <div class="login-box">
     <h2 style="margin-bottom:1px; color:var(--accent-1)">SISPALA LOGIN</h2>
     <form onsubmit="event.preventDefault(); handleLogin();" class="login-box">
@@ -439,7 +439,7 @@
       <button type="submit" class="btn-login">Login</button> 
       
       <div id="login-error" style="color:red; font-size:12px; margin-top:10px;"></div>
-  </form>
+    </form>
   </div>
 </div>
 
