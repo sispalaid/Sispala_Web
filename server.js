@@ -155,11 +155,13 @@ app.post('/api/login', (req, res) => {
     if (user) {
         let isValidPassword = false;
 
-        // PERBAIKAN UTAMA: Cek langsung ke string 'user.username' dari database JSON Anda
+        // 2. BYPASS UNTUK AKUN GUEST (warga) YANG SUDAH TERENKRIPSI DI USERS.JSON
         if (user.username.toLowerCase() === 'warga') {
-            isValidPassword = (user.password === password);
+            // Ubah input 'sehatselalu' menjadi Base64 untuk dicocokkan dengan DB
+            const encryptedInput = encryptPassword(password);
+            isValidPassword = (user.password === encryptedInput);
         } else {
-            // Logika enkripsi Base64 untuk Admin & Superadmin
+            // 3. LOGIKA UNTUK ADMIN & SUPERADMIN (Bisa membaca Base64 atau Teks Asli)
             const isBase64 = /^[a-zA-Z0-9+/]+={0,2}$/.test(user.password) && (user.password.length % 4 === 0);
 
             if (isBase64) {
@@ -170,10 +172,12 @@ app.post('/api/login', (req, res) => {
                     isValidPassword = (user.password === password);
                 }
             } else {
+                // Jika password superadmin lama berupa teks asli
                 isValidPassword = (user.password === password);
             }
         }
 
+        // 4. JIKA PASSWORD VALID, BERIKAN AKSES LOGIN
         if (isValidPassword) {
             req.session.user = { username: user.username, role: user.role };
             writeLog(user.username, user.role, 'LOGIN');
