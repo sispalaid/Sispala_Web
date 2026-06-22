@@ -1186,7 +1186,7 @@ app.post('/api/audio/resume', requireSuperadmin, (req, res) => {
 // 9. Stop broadcast
 app.post('/api/audio/stop', requireSuperadmin, (req, res) => {
     if (!activeBroadcast.proc) {
-        return res.status(400).json({ error: 'Tidak ada broadcast yang aktif.' });
+        return res.json({ success: true, message: 'Tidak ada broadcast yang aktif.' });
     }
     try {
         activeBroadcast.proc.kill('SIGKILL');
