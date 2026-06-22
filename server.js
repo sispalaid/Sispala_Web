@@ -64,6 +64,15 @@ function readUsers() {
     }
 }
 
+// Letakkan di bagian atas server.js, setelah fungsi readUsers() bawaan Anda
+function encryptPassword(password) {
+    return Buffer.from(password).toString('base64');
+}
+
+function decryptPassword(encryptedPassword) {
+    return Buffer.from(encryptedPassword, 'base64').toString('utf-8');
+}
+
 // Helper internal untuk menulis kembali/menyimpan data users ke file JSON
 function saveUsers(usersData) {
     fs.writeFileSync(USERS_FILE, JSON.stringify(usersData, null, 2));
@@ -114,23 +123,60 @@ app.get('/recordings/:cam/:file', (req, res) => {
 });
 
 // DIUBAH: Login sekarang membaca data akun dari file JSON lokal
+// app.post('/api/login', (req, res) => {
+//     const { username, password } = req.body;
+    
+//     // Mengambil data user terbaru dari database file JSON
+//     const users = readUsers();
+//     const user = users.find(u => u.username === username && u.password === password);
+    
+//     if (user) {
+//         req.session.user = { username: user.username, role: user.role };
+        
+//         // CATAT LOG LOGIN
+//         writeLog(user.username, user.role, 'LOGIN');
+        
+//         res.json({ success: true, role: user.role });
+//     } else {
+//         res.status(401).json({ success: false, message: 'Username atau Password salah' });
+//     }
+// });
+
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
     // Mengambil data user terbaru dari database file JSON
     const users = readUsers();
-    const user = users.find(u => u.username === username && u.password === password);
+    
+    // 1. CARI USER BERDASARKAN USERNAME SAJA DULU
+    const user = users.find(u => u.username === username);
     
     if (user) {
-        req.session.user = { username: user.username, role: user.role };
+        let isValidPassword = false;
         
-        // CATAT LOG LOGIN
-        writeLog(user.username, user.role, 'LOGIN');
-        
-        res.json({ success: true, role: user.role });
-    } else {
-        res.status(401).json({ success: false, message: 'Username atau Password salah' });
+        try {
+            // 2. COBA DEKRIPSI PASSWORD DARI USERS.JSON UNTUK DICOCCOKAN DENGAN INPUT
+            const decrypted = decryptPassword(user.password);
+            isValidPassword = (decrypted === password);
+        } catch (e) {
+            // 3. FALLBACK: Jika gagal dekripsi (berarti akun superadmin Anda atau akun lama yang belum terenkripsi), 
+            // cek langsung menggunakan teks asli
+            isValidPassword = (user.password === password);
+        }
+
+        // Jika password cocok, loloskan login
+        if (isValidPassword) {
+            req.session.user = { username: user.username, role: user.role };
+            
+            // CATAT LOG LOGIN
+            writeLog(user.username, user.role, 'LOGIN');
+            
+            return res.json({ success: true, role: user.role });
+        }
     }
+
+    // Jika user tidak ditemukan atau password tidak cocok
+    res.status(401).json({ success: false, message: 'Username atau Password salah' });
 });
 
 app.get('/api/check-session', (req, res) => {
@@ -167,15 +213,21 @@ app.post('/api/create-account', (req, res) => {
         return res.json({ success: false, message: 'Role tidak valid! Harus admin atau guest.' });
     }
 
-    // Ambil data users saat ini
     const users = readUsers();
 
     if (users.find(u => u.username.toLowerCase() === newUsername.toLowerCase())) {
         return res.json({ success: false, message: 'Username sudah terdaftar!' });
     }
 
-    // Menambahkan akun baru dan menyimpannya secara permanen ke file JSON
-    users.push({ username: newUsername, password: newPassword, role: newRole });
+    const encryptedPassword = encryptPassword(newPassword);
+
+    // Dorong data yang sudah terenkripsi ke file database
+    users.push({ 
+        username: newUsername, 
+        password: encryptedPassword, // <-- Menggunakan password yang sudah di-encrypt (Base64)
+        role: newRole 
+    });
+    
     saveUsers(users);
 
     res.json({ success: true, message: `Akun ${newUsername} dengan role [${newRole}] berhasil dibuat!` });
@@ -183,6 +235,40 @@ app.post('/api/create-account', (req, res) => {
 
 // BARU: API untuk Memodifikasi/Mengubah Password dan Role Akun yang Sudah Ada (Hanya untuk Superadmin) -> Diperbarui ke JSON
 // BARU: API untuk Mengambil Daftar Username saja untuk Fitur Suggest Dropdown (Hanya untuk Superadmin)
+
+app.get('/api/users-list', (req, res) => {
+    if (!req.session.user || req.session.user.role !== 'superadmin') {
+        return res.status(403).json({ success: false, message: 'Unauthorized' });
+    }
+    try {
+        const users = readUsers();
+        const currentUsername = req.session.user.username;
+
+        // Filter dan Dekripsi password khusus untuk ditampilkan ke Superadmin di tabel
+        const filteredUsers = users
+            .filter(u => u.username !== currentUsername) // Sesuai permintaan: sesama superadmin tidak saling lihat
+            .map(u => {
+                let plainPassword = u.password;
+                try {
+                    // Coba dekripsi password acak menjadi teks asli untuk ditampilkan di tabel
+                    plainPassword = decryptPassword(u.password);
+                } catch (e) {
+                    // Jika gagal/password bawaan lama belum terenkripsi, biarkan teks asli
+                    plainPassword = u.password;
+                }
+                
+                return {
+                    username: u.username,
+                    role: u.role,
+                    password: plainPassword // Teks asli yang dikirim ke tabel HTML Anda
+                };
+            });
+
+        res.json({ success: true, users: filteredUsers });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'Gagal mengambil daftar pengguna' });
+    }
+});
 
 app.post('/api/modify-account', (req, res) => {
     // Validasi hak akses khusus superadmin
