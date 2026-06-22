@@ -893,13 +893,313 @@ app.get('/api/storage-stats', async (req, res) => {
     }
 });
 
+// --- AUDIO LIBRARY CONFIGURATION ---
+const AUDIO_DIR = '/home/sispala/audio';
+if (!fs.existsSync(AUDIO_DIR)) {
+    try {
+        fs.mkdirSync(AUDIO_DIR, { recursive: true });
+    } catch (err) {
+        console.error(`Failed to create directory ${AUDIO_DIR}:`, err.message);
+        // Fallback locally if we can't write to /home/sispala/audio (e.g. Windows debugging)
+        const localAudioDir = path.join(__dirname, 'audio_library');
+        fs.mkdirSync(localAudioDir, { recursive: true });
+        global.AUDIO_DIR_PATH = localAudioDir;
+    }
+}
+const AUDIO_DIR_PATH = global.AUDIO_DIR_PATH || AUDIO_DIR;
+
+const AUDIO_CONFIG_FILE = path.join(__dirname, 'audio_config.json');
+function readAudioConfig() {
+    if (!fs.existsSync(AUDIO_CONFIG_FILE)) {
+        const defaultConfig = {
+            alarmFile: 'Alarm.mpeg',
+            sirineFile: 'Alarm.mpeg',
+            masterVolume: 100
+        };
+        fs.writeFileSync(AUDIO_CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
+        return defaultConfig;
+    }
+    try {
+        return JSON.parse(fs.readFileSync(AUDIO_CONFIG_FILE, 'utf8'));
+    } catch (e) {
+        return {
+            alarmFile: 'Alarm.mpeg',
+            sirineFile: 'Alarm.mpeg',
+            masterVolume: 100
+        };
+    }
+}
+
+function saveAudioConfig(config) {
+    fs.writeFileSync(AUDIO_CONFIG_FILE, JSON.stringify(config, null, 2));
+}
+
+// Multer Storage Configuration
+const multer = require('multer');
+const audioStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, AUDIO_DIR_PATH);
+    },
+    filename: (req, file, cb) => {
+        const cleanName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        cb(null, `${Date.now()}-${cleanName}`);
+    }
+});
+const audioUpload = multer({
+    storage: audioStorage,
+    fileFilter: (req, file, cb) => {
+        const allowedExtensions = ['.mp3', '.wav', '.mpeg', '.ogg', '.m4a', '.mp4'];
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (allowedExtensions.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Format file audio tidak didukung. Gunakan .mp3, .wav, .mpeg, .ogg, atau .m4a.'));
+        }
+    },
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB
+});
+
+function requireSuperadmin(req, res, next) {
+    if (req.session.user && req.session.user.role === 'superadmin') {
+        next();
+    } else {
+        res.status(403).json({ error: 'Unauthorized: Akses dibatasi untuk Superadmin saja.' });
+    }
+}
+
+// Helper to resolve the correct path for a configured audio file
+function getAudioFilePath(filename) {
+    if (!filename) return null;
+    if (filename === 'Alarm.mpeg' && fs.existsSync(path.join(__dirname, 'Alarm.mpeg'))) {
+        return path.join(__dirname, 'Alarm.mpeg');
+    }
+    const pathInLib = path.join(AUDIO_DIR_PATH, filename);
+    if (fs.existsSync(pathInLib)) {
+        return pathInLib;
+    }
+    // Fallback to Alarm.mpeg locally if not found
+    if (fs.existsSync(path.join(__dirname, 'Alarm.mpeg'))) {
+        return path.join(__dirname, 'Alarm.mpeg');
+    }
+    return null;
+}
+
+// --- AUDIO LIBRARY API ENDPOINTS (SUPERADMIN ONLY) ---
+
+// 1. Get current audio config
+app.get('/api/audio/config', requireSuperadmin, (req, res) => {
+    res.json({ success: true, config: readAudioConfig() });
+});
+
+// 2. Update audio config
+app.post('/api/audio/config', requireSuperadmin, (req, res) => {
+    const { alarmFile, sirineFile, masterVolume } = req.body;
+    const config = readAudioConfig();
+    if (alarmFile !== undefined) config.alarmFile = alarmFile;
+    if (sirineFile !== undefined) config.sirineFile = sirineFile;
+    if (masterVolume !== undefined) {
+        const vol = parseInt(masterVolume);
+        if (!isNaN(vol) && vol >= 0 && vol <= 100) {
+            config.masterVolume = vol;
+        }
+    }
+    saveAudioConfig(config);
+    res.json({ success: true, message: 'Konfigurasi audio berhasil diperbarui!', config });
+});
+
+// 3. Upload audio file
+app.post('/api/audio/upload', requireSuperadmin, (req, res) => {
+    audioUpload.single('audioFile')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        if (!req.file) {
+            return res.status(400).json({ error: 'Silakan pilih file audio untuk diunggah!' });
+        }
+        res.json({ success: true, message: `File audio "${req.file.filename}" berhasil diunggah!`, filename: req.file.filename });
+    });
+});
+
+// 4. List all audio files
+app.get('/api/audio/list', requireSuperadmin, (req, res) => {
+    try {
+        const files = fs.readdirSync(AUDIO_DIR_PATH);
+        const audioFiles = [];
+        
+        // Include default Alarm.mpeg in the list if it exists
+        const localAlarmPath = path.join(__dirname, 'Alarm.mpeg');
+        if (fs.existsSync(localAlarmPath)) {
+            const stats = fs.statSync(localAlarmPath);
+            audioFiles.push({
+                filename: 'Alarm.mpeg',
+                size: stats.size,
+                mtime: stats.mtime,
+                isDefault: true
+            });
+        }
+        
+        files.forEach(file => {
+            if (file === 'Alarm.mpeg') return;
+            const filePath = path.join(AUDIO_DIR_PATH, file);
+            const stats = fs.statSync(filePath);
+            if (stats.isFile()) {
+                audioFiles.push({
+                    filename: file,
+                    size: stats.size,
+                    mtime: stats.mtime,
+                    isDefault: false
+                });
+            }
+        });
+        
+        audioFiles.sort((a, b) => b.mtime - a.mtime);
+        res.json({ success: true, files: audioFiles });
+    } catch (e) {
+        res.status(500).json({ error: 'Gagal membaca library audio: ' + e.message });
+    }
+});
+
+// 5. Delete an audio file
+app.delete('/api/audio/:filename', requireSuperadmin, (req, res) => {
+    const filename = req.params.filename;
+    if (filename === 'Alarm.mpeg') {
+        return res.status(400).json({ error: 'File default Alarm.mpeg tidak dapat dihapus!' });
+    }
+    const filePath = path.join(AUDIO_DIR_PATH, filename);
+    if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'File audio tidak ditemukan.' });
+    }
+    try {
+        fs.unlinkSync(filePath);
+        res.json({ success: true, message: `File audio "${filename}" berhasil dihapus!` });
+    } catch (e) {
+        res.status(500).json({ error: 'Gagal menghapus file: ' + e.message });
+    }
+});
+
+// Global state to track active speaker broadcast
+let activeBroadcast = {
+    proc: null,
+    filename: null,
+    isPaused: false
+};
+
+// 6. Play broadcast on server speakers
+app.post('/api/audio/play', requireSuperadmin, (req, res) => {
+    const { filename, channel } = req.body;
+    if (!filename) {
+        return res.status(400).json({ error: 'Filename harus diisi.' });
+    }
+
+    const filePath = getAudioFilePath(filename);
+    if (!filePath) {
+        return res.status(404).json({ error: 'File audio tidak ditemukan di server.' });
+    }
+
+    // Stop any existing broadcast
+    if (activeBroadcast.proc) {
+        try {
+            activeBroadcast.proc.kill('SIGKILL');
+        } catch (e) {}
+    }
+
+    const config = readAudioConfig();
+    const volumeScale = (config.masterVolume || 100) / 100;
+    
+    // Choose channel filter: stereo, left, right
+    let panFilter = `volume=${volumeScale}`;
+    if (channel === 'left') {
+        panFilter = `pan=stereo|c0=c0|c1=0,volume=${volumeScale}`;
+    } else if (channel === 'right') {
+        panFilter = `pan=stereo|c0=0|c1=c0,volume=${volumeScale}`;
+    }
+
+    const ffmpegCommand = `ffmpeg -re -i "${filePath}" -af "${panFilter}" -f alsa default -nodisp -autoexit`;
+    console.log(`Menjalankan broadcast: ${ffmpegCommand}`);
+
+    const proc = exec(ffmpegCommand, (error) => {
+        if (error && !proc.killed) {
+            console.error(`[FFmpeg Broadcast Error]: ${error.message}`);
+        }
+        if (activeBroadcast.proc === proc) {
+            activeBroadcast.proc = null;
+            activeBroadcast.filename = null;
+            activeBroadcast.isPaused = false;
+        }
+    });
+
+    activeBroadcast.proc = proc;
+    activeBroadcast.filename = filename;
+    activeBroadcast.isPaused = false;
+
+    res.json({ success: true, message: `Memulai broadcast "${filename}"...`, filename });
+});
+
+// 7. Pause broadcast (SIGSTOP)
+app.post('/api/audio/pause', requireSuperadmin, (req, res) => {
+    if (!activeBroadcast.proc) {
+        return res.status(400).json({ error: 'Tidak ada broadcast yang sedang berjalan.' });
+    }
+    if (activeBroadcast.isPaused) {
+        return res.status(400).json({ error: 'Broadcast sudah di-pause.' });
+    }
+    try {
+        activeBroadcast.proc.kill('SIGSTOP');
+        activeBroadcast.isPaused = true;
+        res.json({ success: true, message: 'Broadcast di-pause.' });
+    } catch (e) {
+        res.status(500).json({ error: 'Gagal mem-pause broadcast: ' + e.message });
+    }
+});
+
+// 8. Resume broadcast (SIGCONT)
+app.post('/api/audio/resume', requireSuperadmin, (req, res) => {
+    if (!activeBroadcast.proc) {
+        return res.status(400).json({ error: 'Tidak ada broadcast yang sedang berjalan.' });
+    }
+    if (!activeBroadcast.isPaused) {
+        return res.status(400).json({ error: 'Broadcast tidak sedang di-pause.' });
+    }
+    try {
+        activeBroadcast.proc.kill('SIGCONT');
+        activeBroadcast.isPaused = false;
+        res.json({ success: true, message: 'Broadcast dilanjutkan.' });
+    } catch (e) {
+        res.status(500).json({ error: 'Gagal melanjutkan broadcast: ' + e.message });
+    }
+});
+
+// 9. Stop broadcast
+app.post('/api/audio/stop', requireSuperadmin, (req, res) => {
+    if (!activeBroadcast.proc) {
+        return res.status(400).json({ error: 'Tidak ada broadcast yang aktif.' });
+    }
+    try {
+        activeBroadcast.proc.kill('SIGKILL');
+        activeBroadcast.proc = null;
+        activeBroadcast.filename = null;
+        activeBroadcast.isPaused = false;
+        res.json({ success: true, message: 'Broadcast dihentikan.' });
+    } catch (e) {
+        res.status(500).json({ error: 'Gagal menghentikan broadcast: ' + e.message });
+    }
+});
+
 // --- API: Trigger Alarm (Mock) ---
 app.get('/api/trigger-alarm', (req, res) => {
     if (req.session.user && (req.session.user.role === 'admin' || req.session.user.role === 'superadmin')) {
         console.log(`Alarm CH1 dipicu oleh: ${req.session.user.username}`);
 
-        // Hanya bunyikan alarm.mpeg ke channel kiri (c0=c0), kanan dibungkam (c1=0)
-        const ffmpegCommand = `ffmpeg -re -i "./alarm.mpeg" -af "pan=stereo|c0=c0|c1=0" -f alsa default -nodisp -autoexit`;
+        const config = readAudioConfig();
+        const alarmFile = getAudioFilePath(config.alarmFile);
+
+        if (!alarmFile) {
+            console.error("[FFmpeg CH1 Error]: Audio file not found.");
+            return res.status(404).json({ error: "File audio alarm tidak ditemukan." });
+        }
+
+        const volumeScale = (config.masterVolume || 100) / 100;
+        const ffmpegCommand = `ffmpeg -re -i "${alarmFile}" -af "pan=stereo|c0=c0|c1=0,volume=${volumeScale}" -f alsa default -nodisp -autoexit`;
 
         exec(ffmpegCommand, (error) => {
             if (error) console.error(`[FFmpeg CH1 Error]: ${error.message}`);
@@ -915,8 +1215,16 @@ app.get('/api/trigger-sirine', (req, res) => {
     if (req.session.user && (req.session.user.role === 'admin' || req.session.user.role === 'superadmin')) {
         console.log(`Sirine CH2 dipicu oleh: ${req.session.user.username}`);
 
-        // Hanya bunyikan sirine.mpeg ke channel kanan (c1=c0), kiri dibungkam (c0=0)
-        const ffmpegCommand = `ffmpeg -re -i "./sirine.mpeg" -af "pan=stereo|c0=0|c1=c0" -f alsa default -nodisp -autoexit`;
+        const config = readAudioConfig();
+        const sirineFile = getAudioFilePath(config.sirineFile);
+
+        if (!sirineFile) {
+            console.error("[FFmpeg CH2 Error]: Audio file not found.");
+            return res.status(404).json({ error: "File audio sirine tidak ditemukan." });
+        }
+
+        const volumeScale = (config.masterVolume || 100) / 100;
+        const ffmpegCommand = `ffmpeg -re -i "${sirineFile}" -af "pan=stereo|c0=0|c1=c0,volume=${volumeScale}" -f alsa default -nodisp -autoexit`;
 
         exec(ffmpegCommand, (error) => {
             if (error) console.error(`[FFmpeg CH2 Error]: ${error.message}`);
