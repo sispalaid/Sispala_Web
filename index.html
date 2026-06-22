@@ -464,8 +464,7 @@
 
 <div class="mid-alarm-container" style="display: flex; gap: 15px; justify-content: center; align-items: center;">
   <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM (CH 1)</button>
-  
-  <button id="sirineToggle" class="btn-alarm" onclick="toggleSirine()" style="background-color: var(--accent-2, #e67e22);">BUNYIKAN SIRINE (CH 2)</button>
+  <button id="sirineToggle" class="btn-alarm" onclick="toggleSirine()">BUNYIKAN SIRINE (CH 2)</button>
 </div>
 
 <p id="alarm-status-msg" style="text-align: center; margin-top: 10px; font-weight: bold; min-height: 20px;"></p>
@@ -1240,7 +1239,9 @@ async function loginAsGuest() {
   }
 
   function toggleAlarm() {
-    fetch('/trigger-alarm').then(r => r.json()).then(data => {
+  fetch('/api/trigger-alarm')
+    .then(r => r.json())
+    .then(data => {
       const btn = document.getElementById('alarmToggle');
       if (data.error) {
          alert(data.error);
@@ -1248,9 +1249,30 @@ async function loginAsGuest() {
       }
       btn.classList.add('active');
       btn.innerText = "ALARM AKTIF!";
-      setTimeout(() => { btn.classList.remove('active'); btn.innerText = "BUNYIKAN ALARM DI SERVER"; }, 5000);
+      setTimeout(() => { 
+        btn.classList.remove('active'); 
+        btn.innerText = "BUNYIKAN ALARM (CH 1)"; 
+      }, 5000);
     });
-  }
+}
+
+function toggleSirine() {
+  fetch('/api/trigger-sirine')
+    .then(r => r.json())
+    .then(data => {
+      const btn = document.getElementById('sirineToggle');
+      if (data.error) {
+         alert(data.error);
+         return;
+      }
+      btn.classList.add('active');
+      btn.innerText = "SIRINE AKTIF!";
+      setTimeout(() => { 
+        btn.classList.remove('active'); 
+        btn.innerText = "BUNYIKAN SIRINE (CH 2)"; 
+      }, 5000);
+    });
+}
 
   function playVideo(id) { document.getElementById(`video-${id}`).play(); }
   function pauseVideo(id) { document.getElementById(`video-${id}`).pause(); }
