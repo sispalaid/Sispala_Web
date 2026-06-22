@@ -145,37 +145,30 @@ app.get('/recordings/:cam/:file', (req, res) => {
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
-    // Mengambil data user terbaru dari database file JSON
     const users = readUsers();
     
-    // 1. CARI USER BERDASARKAN USERNAME SAJA DULU
-    const user = users.find(u => u.username === username);
+    // PERBAIKAN: Gunakan .toLowerCase() pada kedua sisi agar username fleksibel besar/kecil hurufnya
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     
     if (user) {
         let isValidPassword = false;
         
         try {
-            // 2. COBA DEKRIPSI PASSWORD DARI USERS.JSON UNTUK DICOCCOKAN DENGAN INPUT
+            // Coba dekripsi jika password dalam format Base64
             const decrypted = decryptPassword(user.password);
             isValidPassword = (decrypted === password);
         } catch (e) {
-            // 3. FALLBACK: Jika gagal dekripsi (berarti akun superadmin Anda atau akun lama yang belum terenkripsi), 
-            // cek langsung menggunakan teks asli
+            // FALLBACK: Jika gagal (seperti akun superadmin lama Anda), cek teks aslinya langsung
             isValidPassword = (user.password === password);
         }
 
-        // Jika password cocok, loloskan login
         if (isValidPassword) {
             req.session.user = { username: user.username, role: user.role };
-            
-            // CATAT LOG LOGIN
             writeLog(user.username, user.role, 'LOGIN');
-            
             return res.json({ success: true, role: user.role });
         }
     }
 
-    // Jika user tidak ditemukan atau password tidak cocok
     res.status(401).json({ success: false, message: 'Username atau Password salah' });
 });
 
