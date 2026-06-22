@@ -264,16 +264,24 @@ app.post('/api/delete-account', (req, res) => {
     }
 });
 
-// BARU: API untuk Mengambil Daftar Username saja untuk Fitur Suggest Dropdown (Hanya untuk Superadmin)
+// API: Mengambil Daftar Pengguna yang Sudah Difilter (Sesama Superadmin tidak saling melihat)
 app.get('/api/users-list', (req, res) => {
     if (!req.session.user || req.session.user.role !== 'superadmin') {
         return res.status(403).json({ success: false, message: 'Unauthorized' });
     }
     try {
         const users = readUsers();
-        // Hanya mengambil properti username untuk alasan keamanan data
-        const usernames = users.map(u => u.username);
-        res.json({ success: true, usernames });
+        const currentUsername = req.session.user.username;
+
+        // FILTER: Tampilkan semua user, KECUALI akun superadmin lain
+        const filteredUsers = users.filter(u => {
+            if (u.role === 'superadmin' && u.username !== currentUsername) {
+                return false; // Jangan masukkan superadmin lain
+            }
+            return true;
+        });
+
+        res.json({ success: true, users: filteredUsers });
     } catch (e) {
         res.status(500).json({ success: false, error: 'Gagal mengambil daftar pengguna' });
     }
