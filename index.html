@@ -638,7 +638,7 @@
   </div>
   <div id="storage-disks" class="storage-disks"></div>
   
-  <div style="margin-top: 20px; border-top: 1px solid var(--stroke-1); padding-top: 15px;">
+  <div id="auto-cleanup-block" style="margin-top: 20px; border-top: 1px solid var(--stroke-1); padding-top: 15px;">
     <div style="font-size: 11px; color: #9fd9ff; letter-spacing: 2px; text-transform: uppercase; font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
       <span>AUTO-CLEANUP STATUS & LOGS</span>
       <button onclick="fetchStorageCleanupLogs()" style="font-size: 9px; padding: 2px 6px; text-transform: none; letter-spacing: 0.5px;">Refresh Cleanup Logs</button>
@@ -1475,7 +1475,8 @@ async function actionDeleteAccount(username) {
       
       // Initialize video streams only after logging in
       initializeStreams();
-      
+
+      const cleanupBlock = document.getElementById('auto-cleanup-block');
       const alarmBtn = document.getElementById('alarmToggle');
       const superadminPanel = document.getElementById('superadmin-panel');
       const systemLogsPanel = document.getElementById('system-logs-panel');
@@ -1489,14 +1490,18 @@ async function actionDeleteAccount(username) {
       if (role === 'superadmin') {
           superadminPanel.style.display = 'block';
           systemLogsPanel.style.display = 'block';
+          cleanupBlock.style.display = 'block';
           fetchSuperadminLogs();
           fetchSystemLogs();
+          fetchStorageCleanupLogs();
           updateUsernameSuggestions();
       } else {
           superadminPanel.style.display = 'none';
           systemLogsPanel.style.display = 'none';
           toggleAutoRefreshLogs(false);
       }
+
+      
   }
 
   async function fetchSuperadminLogs() {
