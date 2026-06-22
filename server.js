@@ -145,17 +145,21 @@ app.get('/recordings/:cam/:file', (req, res) => {
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
+    console.log(`[LOGIN TRY] Username: ${username}`);
+
     const users = readUsers();
+    
+    // 1. Cari user di database tanpa sensitif huruf besar/kecil
     const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
     
     if (user) {
         let isValidPassword = false;
 
-        // 1. TAMBAHKAN PENGECEKAN BYPASS UNTUK AKUN GUEST DEFAULT 'warga'
+        // PERBAIKAN UTAMA: Cek langsung ke string 'user.username' dari database JSON Anda
         if (user.username.toLowerCase() === 'warga') {
             isValidPassword = (user.password === password);
         } else {
-            // 2. LOGIKA YANG SUDAH KITA BUAT SEBELUMNYA UNTUK ADMIN & SUPERADMIN
+            // Logika enkripsi Base64 untuk Admin & Superadmin
             const isBase64 = /^[a-zA-Z0-9+/]+={0,2}$/.test(user.password) && (user.password.length % 4 === 0);
 
             if (isBase64) {
@@ -173,8 +177,13 @@ app.post('/api/login', (req, res) => {
         if (isValidPassword) {
             req.session.user = { username: user.username, role: user.role };
             writeLog(user.username, user.role, 'LOGIN');
+            console.log(`[LOGIN SUCCESS] ${username} berhasil masuk.`);
             return res.json({ success: true, role: user.role });
+        } else {
+            console.log(`[LOGIN FAILED] Password salah untuk user: ${username}`);
         }
+    } else {
+        console.log(`[LOGIN FAILED] Username tidak ditemukan di database: ${username}`);
     }
 
     res.status(401).json({ success: false, message: 'Username atau Password salah' });
