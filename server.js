@@ -1001,6 +1001,10 @@ app.post('/api/audio/config', requireSuperadmin, (req, res) => {
         const vol = parseInt(masterVolume);
         if (!isNaN(vol) && vol >= 0 && vol <= 100) {
             config.masterVolume = vol;
+            // Set hardware ALSA Master volume on Arch Linux to stay in sync
+            exec(`amixer -q sset Master ${vol}%`, (err) => {
+                if (err) console.error(`[ALSA amixer Master Error]: ${err.message}`);
+            });
         }
     }
     saveAudioConfig(config);
@@ -1289,6 +1293,18 @@ io.on('connection', (socket) => {
 // --- START SERVER ---
 const PORT = 8000;
 startStorageMonitor();
+
+// Initialize ALSA hardware volume from configuration on startup
+try {
+    const startupConfig = readAudioConfig();
+    const startupVol = startupConfig.masterVolume !== undefined ? startupConfig.masterVolume : 100;
+    exec(`amixer -q sset Master ${startupVol}%`, (err) => {
+        if (err) console.error(`[ALSA amixer Startup Volume Error]: ${err.message}`);
+    });
+} catch (e) {
+    console.error(`Failed to initialize startup volume: ${e.message}`);
+}
+
 http.listen(PORT, () => {
     console.log(`CCTV Monitoring Server berjalan di http://localhost:${PORT}`);
 });
