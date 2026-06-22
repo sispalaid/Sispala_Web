@@ -1498,6 +1498,7 @@ async function actionDeleteAccount(username) {
       } else {
           superadminPanel.style.display = 'none';
           systemLogsPanel.style.display = 'none';
+          cleanupBlock.style.display = 'none';
           toggleAutoRefreshLogs(false);
       }
 
