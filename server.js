@@ -151,20 +151,23 @@ app.post('/api/login', (req, res) => {
     if (user) {
         let isValidPassword = false;
 
-        // Cek apakah password di database merupakan format Base64 (panjangnya kelipatan 4 & polanya pas)
-        const isBase64 = /^[a-zA-Z0-9+/]+={0,2}$/.test(user.password) && (user.password.length % 4 === 0);
+        // 1. TAMBAHKAN PENGECEKAN BYPASS UNTUK AKUN GUEST DEFAULT 'warga'
+        if (user.username.toLowerCase() === 'warga') {
+            isValidPassword = (user.password === password);
+        } else {
+            // 2. LOGIKA YANG SUDAH KITA BUAT SEBELUMNYA UNTUK ADMIN & SUPERADMIN
+            const isBase64 = /^[a-zA-Z0-9+/]+={0,2}$/.test(user.password) && (user.password.length % 4 === 0);
 
-        if (isBase64) {
-            try {
-                // Jika formatnya Base64, dekripsi dulu baru cocokkan
-                const decrypted = decryptPassword(user.password);
-                isValidPassword = (decrypted === password);
-            } catch (e) {
+            if (isBase64) {
+                try {
+                    const decrypted = decryptPassword(user.password);
+                    isValidPassword = (decrypted === password);
+                } catch (e) {
+                    isValidPassword = (user.password === password);
+                }
+            } else {
                 isValidPassword = (user.password === password);
             }
-        } else {
-            // Jika BUKAN Base64 (pasti akun superadmin lama Anda), langsung cocokkan teks asli
-            isValidPassword = (user.password === password);
         }
 
         if (isValidPassword) {
