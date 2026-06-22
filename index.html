@@ -467,38 +467,64 @@
 </div>
 
 <div id="superadmin-panel" class="superadmin-panel">
-  <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 800px; margin: 0 auto;">
-  
-    <div class="superadmin-card" style="width: 100%;">
-      <h4 style="color: var(--accent-1); font-size: 14px; margin-bottom: 10px;">REGISTER NEW ACCOUNT</h4>
+  <h3 style="color: var(--accent-1); border-bottom: 1px solid var(--stroke-1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 14px;">🛠️ Superadmin Management Console</h3>
+  <div class="superadmin-grid">
+    <div class="superadmin-card">
+      <h4 style="color: #9bc1ff; font-size: 12px; margin-bottom: 5px;">REGISTER NEW ACCOUNT</h4>
       <form onsubmit="event.preventDefault(); createNewAccount();">
-        <input type="text" id="reg-username" placeholder="Username" required style="margin-bottom: 8px; width: 100%;">
-        <input type="password" id="reg-password" placeholder="Password" required style="margin-bottom: 8px; width: 100%;">
-        <select id="reg-role" style="margin-bottom: 8px; width: 100%;">
-          <option value="guest" selected>Guest</option>
+        <input type="text" id="new-username" placeholder="New Username" required>
+        <input type="password" id="new-password" placeholder="New Password" required>
+        <select id="new-role" required>
+          <option value="" disabled selected>Select Role</option>
           <option value="admin">Admin</option>
-          <option value="superadmin">Superadmin</option>
+          <option value="guest">Guest</option>
         </select>
-        <button type="submit" style="width:100%; background: var(--accent-1); color:#000; font-weight:bold;">Create Account</button>
+        <button type="submit" style="width:100%; background: var(--accent-1); color:#000; font-weight:bold; margin-top:5px;">Create Account</button>
       </form>
-      <div id="reg-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
+      <div id="create-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
     </div>
 
-    <div class="superadmin-card" style="width: 100%; overflow-x: auto;">
-      <h4 style="color: var(--accent-2); font-size: 14px; margin-bottom: 10px;">REGISTERED USERS LIST</h4>
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; color: var(--ink-1);">
-        <thead>
-          <tr style="border-bottom: 2px solid var(--stroke-2); color: var(--accent-2);">
-            <th style="padding: 8px;">Username</th>
-            <th style="padding: 8px;">Role</th>
-            <th style="padding: 8px;">Password</th>
-            <th style="padding: 8px; text-align: center;">Actions</th>
-          </tr>
-        </thead>
-        <tbody id="table-users-body">
-          </tbody>
-      </table>
+    <div class="superadmin-card">
+      <h4 style="color: var(--accent-2); font-size: 12px; margin-bottom: 5px;">MODIFY OR DELETE EXISTING ACCOUNT</h4>
+      <form onsubmit="event.preventDefault(); modifyExistingAccount();">
+        <input type="text" id="edit-username" placeholder="Target Username" list="username-suggestions" onfocus="updateUsernameSuggestions()" required>
+        <datalist id="username-suggestions"></datalist>
+        <input type="password" id="edit-password" placeholder="New Password (Leave blank if unchanged)">
+        <select id="edit-role">
+          <option value="" selected>Change Role (Optional)</option>
+          <option value="superadmin">Superadmin</option>
+          <option value="admin">Admin</option>
+          <option value="guest">Guest</option>
+        </select>
+        <button type="submit" style="width:100%; background: var(--accent-2); color:#000; font-weight:bold; margin-top:5px;">Update Account</button>
+        <button type="button" onclick="deleteExistingAccount()" style="width:100%; background: var(--accent-3); color:#fff; font-weight:bold; margin-top:5px; border:none; padding:6px; cursor:pointer;">Delete Account</button>
+      </form>
       <div id="modify-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
+    </div>
+    
+
+    <div class="superadmin-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+        <h4 style="color: #9bc1ff; font-size: 12px;">USER ACTIVITY LOGS</h4>
+        <button onclick="fetchSuperadminLogs()" style="font-size:10px; padding:3px 8px;">Refresh Logs</button>
+      </div>
+      <div class="log-table-wrapper">
+        <table class="log-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="log-table-body">
+            <tr>
+              <td colspan="4" style="text-align:center; color:#555;">Memuat data log...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -1266,92 +1292,6 @@ async function loginAsGuest() {
     return `${days}d ${hours}h ${mins}m ${secs}s`;
   }
 
-// Fungsi Mendapatkan dan Menampilkan List User ke dalam Tabel (Vertikal)
-async function updateUsernameSuggestions() {
-    const tbody = document.getElementById('table-users-body');
-    if (!tbody) return;
-
-    try {
-        const res = await fetch('/api/users-list');
-        const data = await res.json();
-        
-        if (data.success && data.users) {
-            tbody.innerHTML = ''; // Kosongkan tabel lama
-
-            data.users.forEach(user => {
-                const tr = document.createElement('tr');
-                tr.style.borderBottom = '1px solid var(--stroke-1)';
-                
-                // Cek apakah user ini adalah akun dirinya sendiri yang sedang login
-                const isSelf = user.username === window.currentUserUsername; // sesuaikan jika ada variabel global username Anda
-
-                tr.innerHTML = `
-                    <td style="padding: 8px; font-weight: bold;">${user.username} ${isSelf ? '<span style="color:var(--accent-1); font-size:10px;">(You)</span>' : ''}</td>
-                    <td style="padding: 8px;"><span style="padding: 2px 6px; background: var(--stroke-2); border-radius: 4px; font-size: 11px;">${user.role}</span></td>
-                    <td style="padding: 8px; font-family: monospace; color: var(--ink-2);">${user.password}</td>
-                    <td style="padding: 8px; text-align: center; display: flex; gap: 5px; justify-content: center;">
-                        <button onclick="actionChangePassword('${user.username}')" style="padding: 4px 8px; background: var(--accent-2); color: #000; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold;">Edit Pwd</button>
-                        <button onclick="actionDeleteAccount('${user.username}')" ${isSelf ? 'disabled style="opacity:0.5; padding: 4px 8px; background: var(--accent-3); color: #fff; border: none; border-radius: 4px; font-size: 11px;"' : 'style="padding: 4px 8px; background: var(--accent-3); color: #fff; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: bold;"'}>Delete</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        }
-    } catch (e) {
-        console.error("Gagal memuat tabel user:", e);
-    }
-}
-
-// Aksi Ganti Password Langsung dari Tabel
-async function actionChangePassword(username) {
-    const newPassword = prompt(`Masukkan password baru untuk user "${username}":`);
-    if (newPassword === null) return; // Jika batal
-    if (newPassword.trim() === "") {
-        alert("Password tidak boleh kosong!");
-        return;
-    }
-
-    try {
-        const res = await fetch('/api/modify-account', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: username, password: newPassword })
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert(`Password untuk "${username}" berhasil diperbarui!`);
-            updateUsernameSuggestions();
-        } else {
-            alert(data.error || "Gagal mengubah password.");
-        }
-    } catch (e) {
-        alert("Terjadi kesalahan sistem.");
-    }
-}
-
-// Aksi Hapus Akun Langsung dari Tabel
-async function actionDeleteAccount(username) {
-    if (!confirm(`Apakah Anda yakin ingin menghapus seluruh data akun "${username}"?`)) {
-        return;
-    }
-
-    try {
-        const res = await fetch('/api/delete-account', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username })
-        });
-        const data = await res.json();
-        if (data.success) {
-            alert(data.message || "Akun berhasil dihapus.");
-            updateUsernameSuggestions();
-        } else {
-            alert(data.error || "Gagal menghapus akun.");
-        }
-    } catch (e) {
-        alert("Terjadi kesalahan sistem.");
-    }
-}
   // Fungsi Baru untuk Menghapus Akun
 async function deleteExistingAccount() {
     const username = document.getElementById('edit-username').value.trim();
@@ -1482,7 +1422,6 @@ async function deleteExistingAccount() {
           systemLogsPanel.style.display = 'block';
           fetchSuperadminLogs();
           fetchSystemLogs();
-          updateUsernameSuggestions();
       } else {
           superadminPanel.style.display = 'none';
           systemLogsPanel.style.display = 'none';
