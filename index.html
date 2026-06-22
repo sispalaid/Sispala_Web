@@ -1504,13 +1504,16 @@ async function actionDeleteAccount(username) {
 
       const cleanupBlock = document.getElementById('auto-cleanup-block');
       const alarmBtn = document.getElementById('alarmToggle');
+      const sirinetBtn = document.getElementById('sirineToggle');
       const superadminPanel = document.getElementById('superadmin-panel');
       const systemLogsPanel = document.getElementById('system-logs-panel');
       
       if (role === 'admin' || role === 'superadmin') {
-          alarmBtn.style.display = 'inline-block'; 
+          alarmBtn.style.display = 'inline-block';
+          sirinetBtn.style.display = 'inline-block'; 
       } else {
           alarmBtn.style.display = 'none'; 
+          sirinetBtn.style.display = 'none';
       }
 
       if (role === 'superadmin') {
