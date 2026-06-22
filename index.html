@@ -468,27 +468,28 @@
 
 <div id="superadmin-panel" class="superadmin-panel">
   <h3 style="color: var(--accent-1); border-bottom: 1px solid var(--stroke-1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 14px;">🛠️ Superadmin Management Console</h3>
-  <div class="superadmin-grid">
+  
+  <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 900px; margin: 0 auto; margin-top: 15px;">
     
-    <div class="superadmin-card">
-      <h4 style="color: #9bc1ff; font-size: 12px; margin-bottom: 5px;">REGISTER NEW ACCOUNT</h4>
-      <form onsubmit="event.preventDefault(); createNewAccount();">
-        <input type="text" id="new-username" placeholder="New Username" required>
-        <input type="password" id="new-password" placeholder="New Password" required>
-        <select id="new-role" required>
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
+      <h4 style="color: #9bc1ff; font-size: 12px; margin-bottom: 10px;">REGISTER NEW ACCOUNT</h4>
+      <form onsubmit="event.preventDefault(); createNewAccount();" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <input type="text" id="new-username" placeholder="New Username" required style="flex: 1; min-width: 150px; margin-bottom: 0;">
+        <input type="password" id="new-password" placeholder="New Password" required style="flex: 1; min-width: 150px; margin-bottom: 0;">
+        <select id="new-role" required style="flex: 1; min-width: 130px; margin-bottom: 0;">
           <option value="" disabled selected>Select Role</option>
           <option value="guest">Guest</option>
           <option value="admin">Admin</option>
           <option value="superadmin">Superadmin</option>
         </select>
-        <button type="submit" style="width:100%; background: var(--accent-1); color:#000; font-weight:bold; margin-top:5px;">Create Account</button>
+        <button type="submit" style="width: auto; padding: 10px 20px; background: var(--accent-1); color:#000; font-weight:bold; margin-top:0; border-radius: 6px;">Create Account</button>
       </form>
       <div id="create-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
     </div>
 
-    <div class="superadmin-card" style="overflow-x: auto;">
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box; overflow-x: auto;">
       <h4 style="color: var(--accent-2); font-size: 12px; margin-bottom: 10px;">REGISTERED USERS LIST</h4>
-      <div class="log-table-wrapper" style="max-height: 200px; overflow-y: auto;">
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto;">
         <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
           <thead>
             <tr>
@@ -508,12 +509,12 @@
       <div id="modify-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
     </div>
     
-    <div class="superadmin-card">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
         <h4 style="color: #9bc1ff; font-size: 12px;">USER ACTIVITY LOGS</h4>
         <button onclick="fetchSuperadminLogs()" style="font-size:10px; padding:3px 8px;">Refresh Logs</button>
       </div>
-      <div class="log-table-wrapper">
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto;">
         <table class="log-table">
           <thead>
             <tr>
