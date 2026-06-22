@@ -1490,6 +1490,7 @@ async function actionDeleteAccount(username) {
           systemLogsPanel.style.display = 'block';
           fetchSuperadminLogs();
           fetchSystemLogs();
+          updateUsernameSuggestions();
       } else {
           superadminPanel.style.display = 'none';
           systemLogsPanel.style.display = 'none';
