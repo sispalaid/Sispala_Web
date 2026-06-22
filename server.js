@@ -1116,23 +1116,23 @@ app.post('/api/audio/play', requireSuperadmin, (req, res) => {
     }
 
     const config = readAudioConfig();
-    const volumeScale = (config.masterVolume || 100) / 100;
+    const volume = config.masterVolume || 100;
     
     // Choose channel filter: stereo, left, right
-    let panFilter = `volume=${volumeScale}`;
+    let mpvArgs = `--no-video --volume=${volume}`;
     if (channel === 'left') {
-        panFilter = `pan=stereo|c0=c0|c1=0*c0,volume=${volumeScale}`;
+        mpvArgs += ` --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]"`;
     } else if (channel === 'right') {
-        panFilter = `pan=stereo|c0=0*c0|c1=c0,volume=${volumeScale}`;
+        mpvArgs += ` --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]"`;
     }
 
-    const ffmpegCommand = `ffmpeg -re -i "${filePath}" -af "${panFilter}" -f alsa default`;
-    console.log(`Menjalankan broadcast: ${ffmpegCommand}`);
+    const command = `mpv ${mpvArgs} "${filePath}"`;
+    console.log(`Menjalankan broadcast: ${command}`);
 
     stopActiveBroadcast().then(() => {
-        const proc = exec(ffmpegCommand, (error) => {
+        const proc = exec(command, (error) => {
             if (error && !proc.killed) {
-                console.error(`[FFmpeg Broadcast Error]: ${error.message}`);
+                console.error(`[MPV Broadcast Error]: ${error.message}`);
             }
             if (activeBroadcast.proc === proc) {
                 activeBroadcast.proc = null;
@@ -1208,17 +1208,17 @@ app.get('/api/trigger-alarm', (req, res) => {
         const alarmFile = getAudioFilePath(config.alarmFile);
 
         if (!alarmFile) {
-            console.error("[FFmpeg CH1 Error]: Audio file not found.");
+            console.error("[MPV CH1 Error]: Audio file not found.");
             return res.status(404).json({ error: "File audio alarm tidak ditemukan." });
         }
 
-        const volumeScale = (config.masterVolume || 100) / 100;
-        const ffmpegCommand = `ffmpeg -re -i "${alarmFile}" -af "pan=stereo|c0=c0|c1=0*c0,volume=${volumeScale}" -f alsa default`;
+        const volume = config.masterVolume || 100;
+        const command = `mpv --no-video --volume=${volume} --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]" "${alarmFile}"`;
 
         stopActiveBroadcast().then(() => {
-            const proc = exec(ffmpegCommand, (error) => {
+            const proc = exec(command, (error) => {
                 if (error && !proc.killed) {
-                    console.error(`[FFmpeg CH1 Error]: ${error.message}`);
+                    console.error(`[MPV CH1 Error]: ${error.message}`);
                 }
                 if (activeBroadcast.proc === proc) {
                     activeBroadcast.proc = null;
@@ -1246,17 +1246,17 @@ app.get('/api/trigger-sirine', (req, res) => {
         const sirineFile = getAudioFilePath(config.sirineFile);
 
         if (!sirineFile) {
-            console.error("[FFmpeg CH2 Error]: Audio file not found.");
+            console.error("[MPV CH2 Error]: Audio file not found.");
             return res.status(404).json({ error: "File audio sirine tidak ditemukan." });
         }
 
-        const volumeScale = (config.masterVolume || 100) / 100;
-        const ffmpegCommand = `ffmpeg -re -i "${sirineFile}" -af "pan=stereo|c0=0*c0|c1=c0,volume=${volumeScale}" -f alsa default`;
+        const volume = config.masterVolume || 100;
+        const command = `mpv --no-video --volume=${volume} --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]" "${sirineFile}"`;
 
         stopActiveBroadcast().then(() => {
-            const proc = exec(ffmpegCommand, (error) => {
+            const proc = exec(command, (error) => {
                 if (error && !proc.killed) {
-                    console.error(`[FFmpeg CH2 Error]: ${error.message}`);
+                    console.error(`[MPV CH2 Error]: ${error.message}`);
                 }
                 if (activeBroadcast.proc === proc) {
                     activeBroadcast.proc = null;
