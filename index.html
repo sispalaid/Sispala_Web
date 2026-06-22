@@ -462,9 +462,13 @@
 
 <div class="grid" id="video-grid"></div>
 
-<div class="mid-alarm-container">
-  <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM DI SERVER</button>
+<div class="mid-alarm-container" style="display: flex; gap: 15px; justify-content: center; align-items: center;">
+  <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM (CH 1)</button>
+  
+  <button id="sirineToggle" class="btn-alarm" onclick="toggleSirine()" style="background-color: var(--accent-2, #e67e22);">BUNYIKAN SIRINE (CH 2)</button>
 </div>
+
+<p id="alarm-status-msg" style="text-align: center; margin-top: 10px; font-weight: bold; min-height: 20px;"></p>
 
 <div id="superadmin-panel" class="superadmin-panel" style="width: 100%;">
   <h3 style="color: var(--accent-1); border-bottom: 1px solid var(--stroke-1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 14px;">🛠️ Superadmin Management Console</h3>
