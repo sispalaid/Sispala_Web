@@ -399,6 +399,7 @@ a:hover { color: var(--accent-1-dark); text-decoration: underline; }
   border: 1px solid var(--stroke-1);
   border-radius: 10px;
   background: var(--panel-2);
+  position: relative;
 }
 
 .log-table {
