@@ -52,8 +52,16 @@
     <h2>SISPALA LOGIN</h2>
     <form onsubmit="event.preventDefault(); handleLogin();" class="login-box" style="background: transparent; border: none; border-top: none; padding: 0; box-shadow: none; width: 100%;">
       <input type="text" id="username" placeholder="Username" required>
-      <input type="password" id="password" placeholder="Password" required>
-      
+      <!-- <input type="password" id="password" placeholder="Password" required> -->
+      <div style="position: relative; width: 100%;">
+        <input type="password" id="password" placeholder="Password" required style="width: 100%; padding-right: 40px; box-sizing: border-box;">
+        <span id="togglePassword" onclick="togglePasswordVisibility()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); cursor: pointer; display: flex; align-items: center; color: var(--ink-2);">
+          <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </span>
+      </div>
       <button type="submit" class="btn-login">Login</button> 
       <button type="button" onclick="loginAsGuest()" style="background: transparent; border: 1.5px solid var(--accent-1); color: var(--accent-1-dark); margin-top: 8px; width: 100%; padding: 11px; border-radius: 10px; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; font-size: 12px;">LOG IN AS GUEST</button>
       
