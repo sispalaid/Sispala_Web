@@ -934,6 +934,25 @@ function saveAudioConfig(config) {
     fs.writeFileSync(AUDIO_CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
+function setSystemVolume(vol) {
+    // Try pactl (PulseAudio/PipeWire) first
+    exec(`pactl set-sink-volume @DEFAULT_SINK@ ${vol}%`, (err) => {
+        if (err) {
+            // Fallback to amixer targeting PCH card Master channel directly
+            exec(`amixer -c PCH sset Master ${vol}%`, (err2) => {
+                if (err2) {
+                    // Fallback to amixer targeting default card Master channel
+                    exec(`amixer sset Master ${vol}%`, (err3) => {
+                        if (err3) {
+                            console.error(`[Volume Sync Error]: Failed to set system volume: ${err3.message}`);
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
+
 // Multer Storage Configuration
 const multer = require('multer');
 const audioStorage = multer.diskStorage({
@@ -1001,6 +1020,7 @@ app.post('/api/audio/config', requireSuperadmin, (req, res) => {
         const vol = parseInt(masterVolume);
         if (!isNaN(vol) && vol >= 0 && vol <= 100) {
             config.masterVolume = vol;
+            setSystemVolume(vol);
         }
     }
     saveAudioConfig(config);
@@ -1186,7 +1206,7 @@ app.post('/api/audio/resume', requireSuperadmin, (req, res) => {
 // 9. Stop broadcast
 app.post('/api/audio/stop', requireSuperadmin, (req, res) => {
     if (!activeBroadcast.proc) {
-        return res.status(400).json({ error: 'Tidak ada broadcast yang aktif.' });
+        return res.json({ success: true, message: 'Tidak ada broadcast yang aktif.' });
     }
     try {
         activeBroadcast.proc.kill('SIGKILL');
@@ -1289,6 +1309,16 @@ io.on('connection', (socket) => {
 // --- START SERVER ---
 const PORT = 8000;
 startStorageMonitor();
+
+// Initialize ALSA/PipeWire hardware volume from configuration on startup
+try {
+    const startupConfig = readAudioConfig();
+    const startupVol = startupConfig.masterVolume !== undefined ? startupConfig.masterVolume : 100;
+    setSystemVolume(startupVol);
+} catch (e) {
+    console.error(`Failed to initialize startup volume: ${e.message}`);
+}
+
 http.listen(PORT, () => {
     console.log(`CCTV Monitoring Server berjalan di http://localhost:${PORT}`);
 });
