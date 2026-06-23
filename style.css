@@ -395,38 +395,33 @@ a:hover { color: var(--accent-1-dark); text-decoration: underline; }
 
 /* -------------------- LOG TABLE -------------------- */
 .log-table-wrapper {
-  max-height: 250px; 
-  overflow-y: auto; 
-  border: 1px solid var(--stroke-1); 
-  border-radius: 8px; 
-  background: #080c14;
+  max-height: 280px; overflow-y: auto;
+  border: 1px solid var(--stroke-1);
+  border-radius: 10px;
+  background: var(--panel-2);
 }
 
 .log-table {
   width: 100%; 
-  border-collapse: separate; /* 1. DIUBAH: Mengatasi bug overlap pada tabel */
-  border-spacing: 0;        /* 2. DITAMBAHKAN: Menghilangkan celah antar sel akibat efek 'separate' */
-  font-size: 11px; 
-  text-align: left;
+  border-collapse: separate; /* 1. DIUBAH: Mengatasi bug sticky header */
+  border-spacing: 0;
+  font-size: 12px; text-align: left;
+  color: var(--ink-1);
 }
-
 .log-table th, .log-table td {
-  padding: 8px 10px; 
-  border-bottom: 1px solid #141a26;
+  padding: 10px 12px; border-bottom: 1px solid var(--stroke-1);
 }
-
-.log-table th { 
+.log-table th {
   background: var(--accent-1-soft);
   color: var(--accent-1-dark);
-  font-weight: 600; 
-  text-transform: uppercase; 
-  
-  /* 3. DITAMBAHKAN: Kunci utama agar header mengunci di atas dan tidak tabrakan */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  font-size: 11px;
   position: sticky;
   top: 0;
-  z-index: 10; 
+  z-index: 2;
 }
-
 .log-table tr:hover td { background: var(--accent-1-soft); }
 .log-table td { color: var(--ink-2); }
 
