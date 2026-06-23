@@ -421,6 +421,11 @@ a:hover { color: var(--accent-1-dark); text-decoration: underline; }
   top: 0;
   z-index: 10; 
 }
+
+.log-table thead tr {
+  background: var(--accent-1-soft);
+}
+
 .log-table tr:hover td { background: var(--accent-1-soft); }
 .log-table td { color: var(--ink-2); }
 
