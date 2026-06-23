@@ -95,10 +95,16 @@ function writeLog(username, role, action) {
     // Format Waktu Jakarta/WIB
     const timestamp = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
     
-    logs.push({ username, role, action, timestamp });
+    // 1. DIUBAH: Pake 'unshift' supaya data terbaru langsung masuk ke urutan PALING ATAS
+    logs.unshift({ username, role, action, timestamp });
+    
+    // 2. DITAMBAHKAN: Batasi maksimal hanya menyimpan 300 aktivitas terakhir
+    if (logs.length > 300) {
+        logs = logs.slice(0, 300); // Memotong dan membuang data lama setelah baris ke-300
+    }
+    
     fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
 }
-
 // --- SETUP STATIC FILES ---
 app.use(express.static(__dirname));
 
