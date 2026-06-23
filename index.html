@@ -13,7 +13,6 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" />
   <link rel="preload" as="image" href="./Logo_UNS.png">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.7/hls.min.js" defer></script>
-  
 </head>
 <body>
 <script>
@@ -31,13 +30,23 @@
     const next = current === 'light' ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', next);
     try { localStorage.setItem('sispala-theme', next); } catch (e) {}
-    const btn = document.getElementById('themeToggleBtn');
-    if (btn) btn.innerHTML = next === 'light'
-      ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span>Dark</span>'
-      : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><span>Light</span>';
+    updateThemeButtons(next);
   }
+  function updateThemeButtons(theme) {
+    const moonHtml = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span>Dark</span>';
+    const sunHtml  = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><span>Light</span>';
+    const html = theme === 'light' ? moonHtml : sunHtml;
+    document.querySelectorAll('.js-theme-toggle').forEach(btn => { btn.innerHTML = html; });
+  }
+  // Sync icon on initial load
+  document.addEventListener('DOMContentLoaded', function(){
+    updateThemeButtons(document.documentElement.getAttribute('data-theme') || 'light');
+  });
 </script>
 <div id="login-overlay" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+  <button id="themeToggleBtnLogin" class="theme-toggle js-theme-toggle theme-toggle--floating" onclick="toggleTheme()" type="button" title="Toggle theme">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span>Dark</span>
+  </button>
   <div class="login-box">
     <h2>SISPALA LOGIN</h2>
     <form onsubmit="event.preventDefault(); handleLogin();" class="login-box" style="background: transparent; border: none; border-top: none; padding: 0; box-shadow: none; width: 100%;">
@@ -62,7 +71,7 @@
       <p class="team-by">By: SISPALA</p>
     </div>
     <div class="top-right-logout">
-      <button id="themeToggleBtn" class="theme-toggle" onclick="toggleTheme()" type="button" title="Toggle theme">
+      <button id="themeToggleBtn" class="theme-toggle js-theme-toggle" onclick="toggleTheme()" type="button" title="Toggle theme">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><span>Dark</span>
       </button>
       <button id="logoutBtn" onclick="executeLogout()">LOGOUT</button>
@@ -101,8 +110,8 @@
 
     <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
       <h4 style="color: var(--accent-2); font-size: 12px; margin-bottom: 10px;">REGISTERED USERS LIST</h4>
-      <div class="log-table-wrapper" style="position: relative;">
-        <table class="log-table" style="width: 100%;  text-align: left; font-size: 12px;">
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
+        <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
           <thead>
             <tr>
               <th>Username</th>
@@ -126,8 +135,8 @@
         <h4 style="color: #9bc1ff; font-size: 12px;">USER ACTIVITY LOGS</h4>
         <button onclick="fetchSuperadminLogs()" style="font-size:10px; padding:3px 8px;">Refresh Logs</button>
       </div>
-      <div class="log-table-wrapper" style="position: relative;">
-        <table class="log-table">
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
+        <table class="log-table" style="width: 100%;">
           <thead>
             <tr>
               <th>Timestamp</th>
@@ -408,8 +417,7 @@
 </footer>
 
 <script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
-<script src="script.js"></script>
-
+<script src="script.js"></script> 
 </div>
 </body>
 </html>
