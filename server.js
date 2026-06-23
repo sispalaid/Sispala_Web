@@ -75,7 +75,11 @@ function decryptPassword(encryptedPassword) {
 
 // Helper internal untuk menulis kembali/menyimpan data users ke file JSON
 function saveUsers(usersData) {
-    fs.writeFileSync(USERS_FILE, JSON.stringify(usersData, null, 2));
+    try {
+        fs.writeFileSync(USERS_FILE, JSON.stringify(usersData, null, 2));
+    } catch (err) {
+        console.error("Gagal menyimpan data pengguna ke file users.json:", err.message);
+    }
 }
 
 // File penyimpanan Log Aktivitas Login/Logout
@@ -83,27 +87,31 @@ const LOG_FILE = path.join(__dirname, 'login_logs.json');
 
 // Helper internal untuk mencatat aktivitas login/logout ke JSON
 function writeLog(username, role, action) {
-    let logs = [];
-    if (fs.existsSync(LOG_FILE)) {
-        try { 
-            logs = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); 
-        } catch (e) { 
-            logs = []; 
+    try {
+        let logs = [];
+        if (fs.existsSync(LOG_FILE)) {
+            try { 
+                logs = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); 
+            } catch (e) { 
+                logs = []; 
+            }
         }
+        
+        // Format Waktu Jakarta/WIB
+        const timestamp = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+        
+        // 1. DIUBAH: Pake 'unshift' supaya data terbaru langsung masuk ke urutan PALING ATAS
+        logs.unshift({ username, role, action, timestamp });
+        
+        // 2. DITAMBAHKAN: Batasi maksimal hanya menyimpan 300 aktivitas terakhir
+        if (logs.length > 300) {
+            logs = logs.slice(0, 300); // Memotong dan membuang data lama setelah baris ke-300
+        }
+        
+        fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
+    } catch (err) {
+        console.error("Gagal menulis log aktivitas login/logout:", err.message);
     }
-    
-    // Format Waktu Jakarta/WIB
-    const timestamp = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-    
-    // 1. DIUBAH: Pake 'unshift' supaya data terbaru langsung masuk ke urutan PALING ATAS
-    logs.unshift({ username, role, action, timestamp });
-    
-    // 2. DITAMBAHKAN: Batasi maksimal hanya menyimpan 300 aktivitas terakhir
-    if (logs.length > 300) {
-        logs = logs.slice(0, 300); // Memotong dan membuang data lama setelah baris ke-300
-    }
-    
-    fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
 }
 // --- SETUP STATIC FILES ---
 app.use(express.static(__dirname));
@@ -121,7 +129,18 @@ app.get('/recordings/:cam/:file', (req, res) => {
                 if (req.query.download === 'true') {
                     return res.download(filePath, file);
                 }
-                return res.sendFile(filePath);
+                return res.sendFile(filePath, (err) => {
+                    if (err) {
+                        if (err.code === 'ECONNRESET' || err.code === 'EPIPE') {
+                            // Client disconnected, standard browser behavior
+                            return;
+                        }
+                        console.error(`Gagal mengirim file rekaman (${file}): ${err.message}`);
+                        if (!res.headersSent) {
+                            res.status(err.status || 500).send('Gagal mengirim file rekaman.');
+                        }
+                    }
+                });
             }
         }
     }
@@ -937,7 +956,11 @@ function readAudioConfig() {
 }
 
 function saveAudioConfig(config) {
-    fs.writeFileSync(AUDIO_CONFIG_FILE, JSON.stringify(config, null, 2));
+    try {
+        fs.writeFileSync(AUDIO_CONFIG_FILE, JSON.stringify(config, null, 2));
+    } catch (err) {
+        console.error("Gagal menyimpan konfigurasi audio ke file audio_config.json:", err.message);
+    }
 }
 
 function setSystemVolume(vol) {

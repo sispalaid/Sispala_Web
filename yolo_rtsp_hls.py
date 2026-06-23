@@ -1,7 +1,9 @@
 import argparse
+import json
 import os
 import shutil
 import subprocess
+import threading
 import time
 
 import cv2
@@ -85,15 +87,17 @@ def probe_rtsp(source, rtsp_transport):
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
         '-show_streams',
-        '-show_format',
         '-print_format', 'json',
         source
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
-        print(f'RTSP probe: {result.stdout.strip()}')
-    except (subprocess.SubprocessError, FileNotFoundError) as err:
+        data = json.loads(result.stdout)
+        has_audio = any(stream.get('codec_type') == 'audio' for stream in data.get('streams', []))
+        return has_audio
+    except (subprocess.SubprocessError, FileNotFoundError, json.JSONDecodeError) as err:
         print(f'RTSP probe failed: {err}')
+        return False
 
 
 def cleanup_old_recordings(active_record_dir, min_free_bytes):
@@ -176,7 +180,10 @@ def start_ffmpeg(
     hls_list_size,
     segment_time,
     encoder,
-    hw_device
+    hw_device,
+    source,
+    rtsp_transport,
+    has_audio
 ):
     hls_path = os.path.join(streams_dir, 'index.m3u8')
     segment_pattern = os.path.join(streams_dir, 'seg%03d.ts')
@@ -194,6 +201,7 @@ def start_ffmpeg(
     else:
         cmd += ['-vaapi_device', hw_device]
 
+    # Input 0: Raw video frame input from stdin
     cmd += [
         '-f', 'rawvideo',
         '-pix_fmt', 'yuv420p',
@@ -202,7 +210,19 @@ def start_ffmpeg(
         '-i', '-',
     ]
 
+    # Input 1: RTSP input stream for audio (only if available)
+    if has_audio:
+        cmd += [
+            '-thread_queue_size', '1024',
+            '-rtsp_transport', rtsp_transport,
+            '-i', source
+        ]
+
     # --- Output 1: Live HLS Stream (Hardware Encoding) ---
+    cmd += ['-map', '0:v']
+    if has_audio:
+        cmd += ['-map', '1:a']
+
     if encoder == 'qsv':
         cmd += [
             '-vf', f'fps={encode_fps},format=nv12,hwupload=extra_hw_frames=64',
@@ -212,6 +232,12 @@ def start_ffmpeg(
         cmd += [
             '-vf', f'fps={encode_fps},format=nv12,hwupload',
             '-c:v', 'h264_vaapi',
+        ]
+
+    if has_audio:
+        cmd += [
+            '-af', 'aresample=async=1',
+            '-c:a', 'aac',
         ]
 
     cmd += [
@@ -227,6 +253,10 @@ def start_ffmpeg(
     ]
 
     # --- Output 2: MP4 recordings (Hardware Encoding) ---
+    cmd += ['-map', '0:v']
+    if has_audio:
+        cmd += ['-map', '1:a']
+
     if encoder == 'qsv':
         cmd += [
             '-vf', f'fps={encode_fps},format=nv12,hwupload=extra_hw_frames=64',
@@ -236,6 +266,12 @@ def start_ffmpeg(
         cmd += [
             '-vf', f'fps={encode_fps},format=nv12,hwupload',
             '-c:v', 'h264_vaapi',
+        ]
+
+    if has_audio:
+        cmd += [
+            '-af', 'aresample=async=1',
+            '-c:a', 'aac',
         ]
 
     cmd += [
@@ -281,6 +317,13 @@ def main():
     if not (args.source.startswith('rtsp://') or args.source.startswith('rtsps://')):
         raise SystemExit('RTSP source must start with rtsp:// or rtsps://')
 
+    # Start RTSP audio probing in a background thread to run in parallel with YOLO model loading
+    has_audio_holder = [False]
+    def run_probe():
+        has_audio_holder[0] = probe_rtsp(args.source, args.rtsp_transport)
+    probe_thread = threading.Thread(target=run_probe, daemon=True)
+    probe_thread.start()
+
     model = YOLO(args.model, task='detect')
     labels = model.names
 
@@ -292,23 +335,28 @@ def main():
     out_size = parse_size(args.resolution)
     inf_size = parse_size(args.inference_size)
 
-    cap = cv2.VideoCapture(args.source)
-    if not cap.isOpened():
-        raise SystemExit(f'Could not open RTSP stream {args.source}')
+    while True:
+        cap = cv2.VideoCapture(args.source)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            fps = parse_fps(args.fps, cap.get(cv2.CAP_PROP_FPS) or 15)
+            if fps <= 0:
+                fps = 15
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            if width > 0 and height > 0:
+                break
+            
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                height, width = frame.shape[:2]
+                if width > 0 and height > 0:
+                    break
 
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Could not open RTSP stream {args.source} or retrieve frame dimensions. Camera might be offline. Retrying in 10 seconds...")
+        cap.release()
+        time.sleep(10)
 
-    fps = parse_fps(args.fps, cap.get(cv2.CAP_PROP_FPS) or 15)
-    if fps <= 0:
-        fps = 15
-
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    if width <= 0 or height <= 0:
-        ret, frame = cap.read()
-        if not ret or frame is None:
-            raise SystemExit(f'Could not read initial frame from {args.source}')
-        height, width = frame.shape[:2]
 
     decode_proc = None
     if args.hw_decode == 'on':
@@ -327,7 +375,11 @@ def main():
     encode_fps = min(fps, 15)
 
     log_startup(args, width, height, fps, out_size, inf_size, encode_fps)
-    probe_rtsp(args.source, args.rtsp_transport)
+
+    # Wait for background RTSP probe thread to finish (max 2 seconds)
+    probe_thread.join(timeout=2.0)
+    has_audio = has_audio_holder[0]
+    print(f'RTSP stream audio status: {"Detected (recording audio)" if has_audio else "Not Detected (video-only)"}')
 
     consecutive_ffmpeg_crashes = 0
     last_cleanup_time = 0
@@ -345,7 +397,8 @@ def main():
             data = decode_proc.stdout.read(frame_bytes)
             if len(data) != frame_bytes:
                 decode_proc.kill()
-                time.sleep(0.5)
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Decoder process failed to read frame. Retrying in 5 seconds...")
+                time.sleep(5.0)
                 decode_proc = start_ffmpeg_decode(
                     args.source,
                     width,
@@ -362,7 +415,8 @@ def main():
             ret, frame = cap.read()
             if not ret or frame is None:
                 cap.release()
-                time.sleep(0.5)
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Failed to read frame from OpenCV capture. Retrying in 5 seconds...")
+                time.sleep(5.0)
                 cap = cv2.VideoCapture(args.source)
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 continue
@@ -426,7 +480,10 @@ def main():
                 args.hls_list_size,
                 args.segment_time,
                 args.encoder,
-                args.hw_device
+                args.hw_device,
+                args.source,
+                args.rtsp_transport,
+                has_audio
             )
 
         try:
@@ -465,7 +522,10 @@ def main():
                 args.hls_list_size,
                 args.segment_time,
                 args.encoder,
-                args.hw_device
+                args.hw_device,
+                args.source,
+                args.rtsp_transport,
+                has_audio
             )
 
 
