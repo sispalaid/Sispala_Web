@@ -412,7 +412,7 @@ a:hover { color: var(--accent-1-dark); text-decoration: underline; }
   padding: 10px 12px; border-bottom: 1px solid var(--stroke-1);
 }
 .log-table th {
-  background: var(--accent-1-soft);
+  background-image: linear-gradient(var(--accent-1-soft), var(--accent-1-soft));
   color: var(--accent-1-dark);
   font-weight: 700;
   text-transform: uppercase;
@@ -420,7 +420,7 @@ a:hover { color: var(--accent-1-dark); text-decoration: underline; }
   font-size: 11px;
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 10;
 }
 .log-table tr:hover td { background: var(--accent-1-soft); }
 .log-table td { color: var(--ink-2); }
