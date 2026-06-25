@@ -87,6 +87,7 @@ def probe_rtsp(source, rtsp_transport):
         '-hide_banner',
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
+        '-read_intervals', '%+2',
         '-show_streams',
         '-show_format',
         '-print_format', 'json',
