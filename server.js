@@ -992,8 +992,11 @@ function setSystemVolume(vol) {
     });
 }
 
+const MPV_IPC_PATH = process.platform === 'win32' ? '\\\\.\\pipe\\mpv-socket' : '/tmp/mpv-socket';
+const MPV_IPC_ARG = process.platform === 'win32' ? '--input-ipc-server=\\\\.\\pipe\\mpv-socket' : '--input-ipc-server=/tmp/mpv-socket';
+
 function setMpvVolume(vol) {
-    const client = net.createConnection('/tmp/mpv-socket');
+    const client = net.createConnection(MPV_IPC_PATH);
     client.on('connect', () => {
         const cmd = JSON.stringify({ command: ['set_property', 'volume', vol] }) + '\n';
         client.write(cmd);
@@ -1191,7 +1194,7 @@ app.post('/api/audio/play', requireSuperadmin, (req, res) => {
     const volume = config.masterVolume || 100;
     
     // Choose channel filter: stereo, left, right
-    let mpvArgs = `--no-video --volume=${volume} --input-ipc-server=/tmp/mpv-socket`;
+    let mpvArgs = `--no-video --volume=${volume} ${MPV_IPC_ARG}`;
     if (channel === 'left') {
         mpvArgs += ` --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]"`;
     } else if (channel === 'right') {
@@ -1285,7 +1288,7 @@ app.get('/api/trigger-alarm', (req, res) => {
         }
 
         const volume = config.masterVolume || 100;
-        const command = `mpv --no-video --volume=${volume} --input-ipc-server=/tmp/mpv-socket --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]" "${alarmFile}"`;
+        const command = `mpv --no-video --volume=${volume} ${MPV_IPC_ARG} --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]" "${alarmFile}"`;
 
         stopActiveBroadcast().then(() => {
             const proc = exec(command, (error) => {
@@ -1323,7 +1326,7 @@ app.get('/api/trigger-sirine', (req, res) => {
         }
 
         const volume = config.masterVolume || 100;
-        const command = `mpv --no-video --volume=${volume} --input-ipc-server=/tmp/mpv-socket --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]" "${sirineFile}"`;
+        const command = `mpv --no-video --volume=${volume} ${MPV_IPC_ARG} --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]" "${sirineFile}"`;
 
         stopActiveBroadcast().then(() => {
             const proc = exec(command, (error) => {
