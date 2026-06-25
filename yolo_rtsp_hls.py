@@ -31,6 +31,7 @@ def parse_args():
     parser.add_argument('--hw-decode', required=True, choices=['on', 'off'], help='Enable hardware-accelerated decode')
     parser.add_argument('--decode-device', required=True, help='Decode render device path')
     parser.add_argument('--rtsp-transport', required=True, choices=['tcp', 'udp'], help='RTSP transport')
+    parser.add_argument('--bitrate', default='1.5M', help='Fallback video encoding bitrate (e.g. 1.5M, 1500k)')
     return parser.parse_args()
 
 
@@ -95,11 +96,23 @@ def probe_rtsp(source, rtsp_transport):
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
         print(f'RTSP probe: {result.stdout.strip()}')
         data = json.loads(result.stdout)
+        
+        # 1. Check for audio stream
         has_audio = any(stream.get('codec_type') == 'audio' for stream in data.get('streams', []))
-        return has_audio
+        
+        # 2. Try to parse dynamic video or format bitrate
+        detected_bitrate = None
+        for stream in data.get('streams', []):
+            if stream.get('codec_type') == 'video' and stream.get('bit_rate'):
+                detected_bitrate = stream.get('bit_rate')
+                break
+        if not detected_bitrate and data.get('format', {}).get('bit_rate'):
+            detected_bitrate = data.get('format', {}).get('bit_rate')
+            
+        return has_audio, detected_bitrate
     except (subprocess.SubprocessError, FileNotFoundError, json.JSONDecodeError) as err:
         print(f'RTSP probe failed: {err}')
-        return False
+        return False, None
 
 
 def cleanup_old_recordings(active_record_dir, min_free_bytes):
@@ -185,7 +198,8 @@ def start_ffmpeg(
     hw_device,
     source,
     rtsp_transport,
-    has_audio
+    has_audio,
+    bitrate
 ):
     hls_path = os.path.join(streams_dir, 'index.m3u8')
     segment_pattern = os.path.join(streams_dir, 'seg%03d.ts')
@@ -236,6 +250,9 @@ def start_ffmpeg(
             '-c:v', 'h264_vaapi',
         ]
 
+    # Apply target video bitrate
+    cmd += ['-b:v', bitrate]
+
     if has_audio:
         cmd += [
             '-af', 'aresample=async=1',
@@ -269,6 +286,9 @@ def start_ffmpeg(
             '-vf', f'fps={encode_fps},format=nv12,hwupload',
             '-c:v', 'h264_vaapi',
         ]
+
+    # Apply target video bitrate
+    cmd += ['-b:v', bitrate]
 
     if has_audio:
         cmd += [
@@ -319,10 +339,12 @@ def main():
     if not (args.source.startswith('rtsp://') or args.source.startswith('rtsps://')):
         raise SystemExit('RTSP source must start with rtsp:// or rtsps://')
 
-    # Start RTSP audio probing in a background thread to run in parallel with YOLO model loading
-    has_audio_holder = [False]
+    # Start RTSP probing in a background thread to run in parallel with YOLO model loading
+    probe_result_holder = [False, None]
     def run_probe():
-        has_audio_holder[0] = probe_rtsp(args.source, args.rtsp_transport)
+        has_audio, det_br = probe_rtsp(args.source, args.rtsp_transport)
+        probe_result_holder[0] = has_audio
+        probe_result_holder[1] = det_br
     probe_thread = threading.Thread(target=run_probe, daemon=True)
     probe_thread.start()
 
@@ -382,7 +404,24 @@ def main():
 
     # Wait for background RTSP probe thread to finish (max 2 seconds)
     probe_thread.join(timeout=2.0)
-    has_audio = has_audio_holder[0]
+    has_audio = probe_result_holder[0]
+    detected_bitrate = probe_result_holder[1]
+    
+    # Select target video encoding bitrate
+    if detected_bitrate:
+        target_bitrate = detected_bitrate
+        try:
+            bps = int(detected_bitrate)
+            if bps >= 1000000:
+                print(f'[{args.cam}] RTSP probe detected video bitrate: {bps / 1000000:.2f} Mbps')
+            else:
+                print(f'[{args.cam}] RTSP probe detected video bitrate: {bps / 1000:.0f} kbps')
+        except ValueError:
+            print(f'[{args.cam}] RTSP probe detected video bitrate: {detected_bitrate}')
+    else:
+        target_bitrate = args.bitrate
+        print(f'[{args.cam}] Video bitrate not found in RTSP probe metadata. Using fallback config: {target_bitrate}')
+
     print(f'RTSP stream audio status: {"Detected (recording audio)" if has_audio else "Not Detected (video-only)"}')
 
     consecutive_ffmpeg_crashes = 0
@@ -489,7 +528,8 @@ def main():
                 args.hw_device,
                 args.source,
                 args.rtsp_transport,
-                has_audio
+                has_audio,
+                target_bitrate
             )
 
         try:
@@ -531,7 +571,8 @@ def main():
                 args.hw_device,
                 args.source,
                 args.rtsp_transport,
-                has_audio
+                has_audio,
+                target_bitrate
             )
 
 

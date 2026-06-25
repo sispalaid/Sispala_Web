@@ -12,6 +12,7 @@ set +a
 MODEL_PATH="${CAM2_MODEL_PATH:-/home/sispala/yolo26n.engine}"
 DEVICE="${CAM2_DEVICE:-cuda:0}"
 RTSP_URL="${CAM2_RTSP_URL:-rtsp://admin:password@192.168.0.x:554/stream1}"
+BITRATE="${CAM2_BITRATE:-1.5M}"
 OUT_RES=""
 
 while true; do
@@ -34,6 +35,7 @@ while true; do
 		--hw-device "/dev/dri/by-path/pci-0000:00:02.0-render" \
 		--hw-decode "on" \
 		--decode-device "/dev/dri/by-path/pci-0000:00:02.0-render" \
-		--rtsp-transport "tcp"
+		--rtsp-transport "tcp" \
+		--bitrate "$BITRATE"
 	sleep 2
 done
