@@ -973,16 +973,17 @@ function setSystemVolume(vol) {
     });
 
     // 2. Set ALSA physical controls directly to ensure hardware volume is in sync
+    // We set PCM and Line Out to 100% to prevent compounding attenuation
     const amixerCmds = [
         `amixer -c PCH sset Master ${vol}%`,
-        `amixer -c PCH sset PCM ${vol}%`,
-        `amixer -c PCH sset 'Line Out' ${vol}%`,
+        `amixer -c PCH sset PCM 100%`,
+        `amixer -c PCH sset 'Line Out' 100%`,
         `amixer -c 1 sset Master ${vol}%`,
-        `amixer -c 1 sset PCM ${vol}%`,
-        `amixer -c 1 sset 'Line Out' ${vol}%`,
+        `amixer -c 1 sset PCM 100%`,
+        `amixer -c 1 sset 'Line Out' 100%`,
         `amixer sset Master ${vol}%`,
-        `amixer sset PCM ${vol}%`,
-        `amixer sset 'Line Out' ${vol}%`
+        `amixer sset PCM 100%`,
+        `amixer sset 'Line Out' 100%`
     ];
 
     amixerCmds.forEach(cmd => {
@@ -998,7 +999,8 @@ const MPV_IPC_ARG = process.platform === 'win32' ? '--input-ipc-server=\\\\.\\pi
 function setMpvVolume(vol) {
     const client = net.createConnection(MPV_IPC_PATH);
     client.on('connect', () => {
-        const cmd = JSON.stringify({ command: ['set_property', 'volume', vol] }) + '\n';
+        // Set MPV player volume to 100% to prevent compounding attenuation
+        const cmd = JSON.stringify({ command: ['set_property', 'volume', 100] }) + '\n';
         client.write(cmd);
         client.end();
     });
@@ -1191,10 +1193,9 @@ app.post('/api/audio/play', requireSuperadmin, (req, res) => {
     }
 
     const config = readAudioConfig();
-    const volume = config.masterVolume || 100;
     
     // Choose channel filter: stereo, left, right
-    let mpvArgs = `--no-video --volume=${volume} ${MPV_IPC_ARG}`;
+    let mpvArgs = `--no-video --volume=100 ${MPV_IPC_ARG}`;
     if (channel === 'left') {
         mpvArgs += ` --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]"`;
     } else if (channel === 'right') {
@@ -1287,8 +1288,7 @@ app.get('/api/trigger-alarm', (req, res) => {
             return res.status(404).json({ error: "File audio alarm tidak ditemukan." });
         }
 
-        const volume = config.masterVolume || 100;
-        const command = `mpv --no-video --volume=${volume} ${MPV_IPC_ARG} --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]" "${alarmFile}"`;
+        const command = `mpv --no-video --volume=100 ${MPV_IPC_ARG} --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]" "${alarmFile}"`;
 
         stopActiveBroadcast().then(() => {
             const proc = exec(command, (error) => {
@@ -1325,8 +1325,7 @@ app.get('/api/trigger-sirine', (req, res) => {
             return res.status(404).json({ error: "File audio sirine tidak ditemukan." });
         }
 
-        const volume = config.masterVolume || 100;
-        const command = `mpv --no-video --volume=${volume} ${MPV_IPC_ARG} --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]" "${sirineFile}"`;
+        const command = `mpv --no-video --volume=100 ${MPV_IPC_ARG} --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]" "${sirineFile}"`;
 
         stopActiveBroadcast().then(() => {
             const proc = exec(command, (error) => {
