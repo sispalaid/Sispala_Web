@@ -96,8 +96,14 @@ def probe_rtsp(source, rtsp_transport):
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
-        print(f'RTSP probe: {result.stdout.strip()}')
         data = json.loads(result.stdout)
+        
+        # Print only streams and format blocks to avoid packet list clutter
+        log_data = {
+            "streams": data.get("streams", []),
+            "format": data.get("format", {})
+        }
+        print(f'RTSP probe: {json.dumps(log_data, indent=4)}')
         
         # 1. Check for audio stream
         has_audio = any(stream.get('codec_type') == 'audio' for stream in data.get('streams', []))
