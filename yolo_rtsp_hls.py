@@ -339,7 +339,8 @@ def main():
     while True:
         cap = cv2.VideoCapture(args.source)
         if cap.isOpened():
-            cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
+            if hasattr(cv2, 'CAP_PROP_TIMEOUT_MS'):
+                cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             fps = parse_fps(args.fps, cap.get(cv2.CAP_PROP_FPS) or 15)
             if fps <= 0:
@@ -420,7 +421,8 @@ def main():
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Failed to read frame from OpenCV capture. Retrying in 5 seconds...")
                 time.sleep(5.0)
                 cap = cv2.VideoCapture(args.source)
-                cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
+                if hasattr(cv2, 'CAP_PROP_TIMEOUT_MS'):
+                    cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
                 continue
 
