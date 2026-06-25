@@ -96,6 +96,7 @@ def probe_rtsp(source, rtsp_transport):
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
+        print(f'RTSP probe: {result.stdout.strip()}')
         data = json.loads(result.stdout)
         
         # 1. Check for audio stream
