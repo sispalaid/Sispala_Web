@@ -88,6 +88,7 @@ def probe_rtsp(source, rtsp_transport):
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
         '-read_intervals', '%+2',
+        '-show_packets',
         '-show_streams',
         '-show_format',
         '-print_format', 'json',
@@ -95,13 +96,12 @@ def probe_rtsp(source, rtsp_transport):
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=10)
-        print(f'RTSP probe: {result.stdout.strip()}')
         data = json.loads(result.stdout)
         
         # 1. Check for audio stream
         has_audio = any(stream.get('codec_type') == 'audio' for stream in data.get('streams', []))
         
-        # 2. Try to parse dynamic video or format bitrate
+        # 2. Try to parse video or format bitrate from metadata
         detected_bitrate = None
         for stream in data.get('streams', []):
             if stream.get('codec_type') == 'video' and stream.get('bit_rate'):
@@ -109,6 +109,36 @@ def probe_rtsp(source, rtsp_transport):
                 break
         if not detected_bitrate and data.get('format', {}).get('bit_rate'):
             detected_bitrate = data.get('format', {}).get('bit_rate')
+            
+        # 3. If metadata bitrate is missing (common for live RTSP), compute it dynamically from packets
+        if not detected_bitrate:
+            packets = data.get('packets', [])
+            if packets:
+                video_packets = [p for p in packets if p.get('codec_type') == 'video']
+                if len(video_packets) >= 2:
+                    total_bytes = sum(int(p.get('size', 0)) for p in video_packets)
+                    try:
+                        t_start = float(video_packets[0].get('pts_time') or video_packets[0].get('dts_time') or 0)
+                        t_end = float(video_packets[-1].get('pts_time') or video_packets[-1].get('dts_time') or 0)
+                        duration = t_end - t_start
+                        if duration <= 0:
+                            # Fallback duration estimate: packet count / video stream FPS
+                            fps = 15.0
+                            for stream in data.get('streams', []):
+                                if stream.get('codec_type') == 'video':
+                                    r_fps = stream.get('r_frame_rate')
+                                    if r_fps and '/' in r_fps:
+                                        num, den = map(float, r_fps.split('/'))
+                                        if den > 0:
+                                            fps = num / den
+                                            break
+                            duration = len(video_packets) / fps
+                        
+                        if duration > 0:
+                            bps = int((total_bytes * 8) / duration)
+                            detected_bitrate = str(bps)
+                    except Exception:
+                        pass
             
         return has_audio, detected_bitrate
     except (subprocess.SubprocessError, FileNotFoundError, json.JSONDecodeError) as err:
