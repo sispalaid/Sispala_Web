@@ -216,6 +216,7 @@ def start_ffmpeg(
         cmd += [
             '-thread_queue_size', '1024',
             '-rtsp_transport', rtsp_transport,
+            '-stimeout', '5000000',  # 5 seconds timeout in microseconds
             '-i', source
         ]
 
@@ -296,7 +297,7 @@ def start_ffmpeg_decode(source, width, height, fps, decode_device, rtsp_transpor
         '-hide_banner',
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
-        # '-timeout', '15000000',
+        '-stimeout', '5000000',  # 5 seconds timeout in microseconds
         '-hwaccel', 'vaapi',
         '-hwaccel_device', decode_device,
         '-hwaccel_output_format', 'vaapi',
@@ -339,6 +340,7 @@ def main():
     while True:
         cap = cv2.VideoCapture(args.source)
         if cap.isOpened():
+            cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             fps = parse_fps(args.fps, cap.get(cv2.CAP_PROP_FPS) or 15)
             if fps <= 0:
@@ -398,7 +400,7 @@ def main():
             data = decode_proc.stdout.read(frame_bytes)
             if len(data) != frame_bytes:
                 decode_proc.kill()
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Decoder process failed to read frame. Retrying in 5 seconds...")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Decoder process failed to read frame for {args.cam}. Retrying in 5 seconds...")
                 time.sleep(5.0)
                 decode_proc = start_ffmpeg_decode(
                     args.source,
@@ -408,6 +410,8 @@ def main():
                     args.decode_device,
                     args.rtsp_transport
                 )
+                if decode_proc.poll() is None:
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Info: Successfully reconnected and restarted decoder process for {args.cam}.")
                 continue
             # Decode NV12 from raw bytes to BGR frame in Python using OpenCV's fast color conversion
             nv12_frame = np.frombuffer(data, dtype=np.uint8).reshape((height * 3 // 2, width))
@@ -416,10 +420,13 @@ def main():
             ret, frame = cap.read()
             if not ret or frame is None:
                 cap.release()
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Failed to read frame from OpenCV capture. Retrying in 5 seconds...")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Failed to read frame from OpenCV capture for {args.cam}. Retrying in 5 seconds...")
                 time.sleep(5.0)
                 cap = cv2.VideoCapture(args.source)
+                cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                if cap.isOpened():
+                    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Info: Successfully reconnected OpenCV capture for {args.cam}.")
                 continue
 
         if inf_size:
@@ -494,9 +501,9 @@ def main():
             yuv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420)
             ffmpeg.stdin.write(yuv_frame.tobytes())
             consecutive_ffmpeg_crashes = 0
-        except (BrokenPipeError, AttributeError, OSError):
+        except (BrokenPipeError, AttributeError, OSError) as err:
             consecutive_ffmpeg_crashes += 1
-            print(f"FFmpeg stdin broken for {args.cam} (consecutive crashes: {consecutive_ffmpeg_crashes})")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error: FFmpeg stdin broken for {args.cam} (consecutive crashes: {consecutive_ffmpeg_crashes}) - {err}")
             if consecutive_ffmpeg_crashes >= 3:
                 if ffmpeg:
                     try:

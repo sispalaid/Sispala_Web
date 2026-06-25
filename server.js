@@ -5,6 +5,7 @@ const io = require('socket.io')(http);
 const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
+const net = require('net');
 
 // Load environment variables from .env file manually
 const dotenvPath = path.join(__dirname, '.env');
@@ -964,21 +965,42 @@ function saveAudioConfig(config) {
 }
 
 function setSystemVolume(vol) {
-    // Try pactl (PulseAudio/PipeWire) first
+    // 1. Try pactl (PulseAudio/PipeWire) first
     exec(`pactl set-sink-volume @DEFAULT_SINK@ ${vol}%`, (err) => {
         if (err) {
-            // Fallback to amixer targeting PCH card Master channel directly
-            exec(`amixer -c PCH sset Master ${vol}%`, (err2) => {
-                if (err2) {
-                    // Fallback to amixer targeting default card Master channel
-                    exec(`amixer sset Master ${vol}%`, (err3) => {
-                        if (err3) {
-                            console.error(`[Volume Sync Error]: Failed to set system volume: ${err3.message}`);
-                        }
-                    });
-                }
-            });
+            console.warn(`[Volume Sync Warning]: pactl failed: ${err.message}`);
         }
+    });
+
+    // 2. Set ALSA physical controls directly to ensure hardware volume is in sync
+    const amixerCmds = [
+        `amixer -c PCH sset Master ${vol}%`,
+        `amixer -c PCH sset PCM ${vol}%`,
+        `amixer -c PCH sset 'Line Out' ${vol}%`,
+        `amixer -c 1 sset Master ${vol}%`,
+        `amixer -c 1 sset PCM ${vol}%`,
+        `amixer -c 1 sset 'Line Out' ${vol}%`,
+        `amixer sset Master ${vol}%`,
+        `amixer sset PCM ${vol}%`,
+        `amixer sset 'Line Out' ${vol}%`
+    ];
+
+    amixerCmds.forEach(cmd => {
+        exec(cmd, (err) => {
+            // Swallowed fallback errors
+        });
+    });
+}
+
+function setMpvVolume(vol) {
+    const client = net.createConnection('/tmp/mpv-socket');
+    client.on('connect', () => {
+        const cmd = JSON.stringify({ command: ['set_property', 'volume', vol] }) + '\n';
+        client.write(cmd);
+        client.end();
+    });
+    client.on('error', () => {
+        // Silent catch: mpv might not be running or socket doesn't exist
     });
 }
 
@@ -1050,6 +1072,7 @@ app.post('/api/audio/config', requireSuperadmin, (req, res) => {
         if (!isNaN(vol) && vol >= 0 && vol <= 100) {
             config.masterVolume = vol;
             setSystemVolume(vol);
+            setMpvVolume(vol);
         }
     }
     saveAudioConfig(config);
@@ -1168,7 +1191,7 @@ app.post('/api/audio/play', requireSuperadmin, (req, res) => {
     const volume = config.masterVolume || 100;
     
     // Choose channel filter: stereo, left, right
-    let mpvArgs = `--no-video --volume=${volume}`;
+    let mpvArgs = `--no-video --volume=${volume} --input-ipc-server=/tmp/mpv-socket`;
     if (channel === 'left') {
         mpvArgs += ` --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]"`;
     } else if (channel === 'right') {
@@ -1262,7 +1285,7 @@ app.get('/api/trigger-alarm', (req, res) => {
         }
 
         const volume = config.masterVolume || 100;
-        const command = `mpv --no-video --volume=${volume} --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]" "${alarmFile}"`;
+        const command = `mpv --no-video --volume=${volume} --input-ipc-server=/tmp/mpv-socket --af=lavfi="[pan=stereo|c0=c0|c1=0*c0]" "${alarmFile}"`;
 
         stopActiveBroadcast().then(() => {
             const proc = exec(command, (error) => {
@@ -1300,7 +1323,7 @@ app.get('/api/trigger-sirine', (req, res) => {
         }
 
         const volume = config.masterVolume || 100;
-        const command = `mpv --no-video --volume=${volume} --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]" "${sirineFile}"`;
+        const command = `mpv --no-video --volume=${volume} --input-ipc-server=/tmp/mpv-socket --af=lavfi="[pan=stereo|c0=0*c0|c1=c0]" "${sirineFile}"`;
 
         stopActiveBroadcast().then(() => {
             const proc = exec(command, (error) => {

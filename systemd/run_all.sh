@@ -19,13 +19,13 @@ trap cleanup INT TERM EXIT
 /usr/bin/node "$SCRIPT_DIR/server.js" &
 NODE_PID=$!
 
-"$SCRIPT_DIR/cam1.sh" &
+"$SCRIPT_DIR/cam1.sh" > "$SCRIPT_DIR/cam1.log" 2>&1 &
 CAM1_PID=$!
-"$SCRIPT_DIR/cam2.sh" &
+"$SCRIPT_DIR/cam2.sh" > "$SCRIPT_DIR/cam2.log" 2>&1 &
 CAM2_PID=$!
-"$SCRIPT_DIR/cam3.sh" &
+"$SCRIPT_DIR/cam3.sh" > "$SCRIPT_DIR/cam3.log" 2>&1 &
 CAM3_PID=$!
-"$SCRIPT_DIR/cam4.sh" &
+"$SCRIPT_DIR/cam4.sh" > "$SCRIPT_DIR/cam4.log" 2>&1 &
 CAM4_PID=$!
 
 CAM_PIDS="$CAM1_PID $CAM2_PID $CAM3_PID $CAM4_PID"
