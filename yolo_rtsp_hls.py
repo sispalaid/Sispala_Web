@@ -296,7 +296,7 @@ def start_ffmpeg_decode(source, width, height, fps, decode_device, rtsp_transpor
         '-hide_banner',
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
-        '-stimeout', '5000000',  # 5 seconds timeout in microseconds
+        '-timeout', '5000000',  # 5 seconds timeout in microseconds
         '-hwaccel', 'vaapi',
         '-hwaccel_device', decode_device,
         '-hwaccel_output_format', 'vaapi',
