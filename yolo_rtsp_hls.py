@@ -216,7 +216,6 @@ def start_ffmpeg(
         cmd += [
             '-thread_queue_size', '1024',
             '-rtsp_transport', rtsp_transport,
-            '-stimeout', '5000000',  # 5 seconds timeout in microseconds
             '-i', source
         ]
 
