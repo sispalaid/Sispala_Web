@@ -269,6 +269,11 @@ def start_ffmpeg(
         cmd += [
             '-thread_queue_size', '1024',
             '-rtsp_transport', rtsp_transport,
+            '-reconnect', '1',
+            '-reconnect_at_eof', '1',
+            '-reconnect_streamed', '1',
+            '-reconnect_delay_max', '10',
+            '-timeout', '15000000',
             '-i', source
         ]
 
@@ -355,7 +360,11 @@ def start_ffmpeg_decode(source, width, height, fps, decode_device, rtsp_transpor
         '-hide_banner',
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
-        '-timeout', '5000000',  # 5 seconds timeout in microseconds
+        '-reconnect', '1',
+        '-reconnect_at_eof', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '10',
+        '-timeout', '15000000',  # 15 seconds timeout in microseconds
         '-hwaccel', 'vaapi',
         '-hwaccel_device', decode_device,
         '-hwaccel_output_format', 'vaapi',
@@ -478,7 +487,15 @@ def main():
             data = decode_proc.stdout.read(frame_bytes)
             if len(data) != frame_bytes:
                 decode_proc.kill()
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Decoder process failed to read frame. Retrying in 5 seconds...")
+                # Also kill the encode FFmpeg — its stdin pipe is now stale
+                if ffmpeg:
+                    try:
+                        ffmpeg.kill()
+                        ffmpeg.wait(timeout=1)
+                    except Exception:
+                        pass
+                    ffmpeg = None
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Decoder process failed to read frame. Restarting both decoder and encoder in 5 seconds...")
                 time.sleep(5.0)
                 decode_proc = start_ffmpeg_decode(
                     args.source,
@@ -488,6 +505,7 @@ def main():
                     args.decode_device,
                     args.rtsp_transport
                 )
+                # ffmpeg will be recreated when the first successful frame reaches the encode section
                 continue
             # Decode NV12 from raw bytes to BGR frame in Python using OpenCV's fast color conversion
             nv12_frame = np.frombuffer(data, dtype=np.uint8).reshape((height * 3 // 2, width))
@@ -496,12 +514,21 @@ def main():
             ret, frame = cap.read()
             if not ret or frame is None:
                 cap.release()
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Failed to read frame from OpenCV capture. Retrying in 5 seconds...")
+                # Also kill the encode FFmpeg — its stdin pipe is now stale
+                if ffmpeg:
+                    try:
+                        ffmpeg.kill()
+                        ffmpeg.wait(timeout=1)
+                    except Exception:
+                        pass
+                    ffmpeg = None
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Warning: Failed to read frame from OpenCV capture. Restarting in 5 seconds...")
                 time.sleep(5.0)
                 cap = cv2.VideoCapture(args.source)
                 if hasattr(cv2, 'CAP_PROP_TIMEOUT_MS'):
                     cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                # ffmpeg will be recreated when the first successful frame reaches the encode section
                 continue
 
         if inf_size:
