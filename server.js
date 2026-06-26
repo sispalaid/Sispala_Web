@@ -88,31 +88,27 @@ const LOG_FILE = path.join(__dirname, 'login_logs.json');
 
 // Helper internal untuk mencatat aktivitas login/logout ke JSON
 function writeLog(username, role, action) {
-    try {
-        let logs = [];
-        if (fs.existsSync(LOG_FILE)) {
-            try { 
-                logs = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); 
-            } catch (e) { 
-                logs = []; 
-            }
+    let logs = [];
+    if (fs.existsSync(LOG_FILE)) {
+        try { 
+            logs = JSON.parse(fs.readFileSync(LOG_FILE, 'utf8')); 
+        } catch (e) { 
+            logs = []; 
         }
-        
-        // Format Waktu Jakarta/WIB
-        const timestamp = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
-        
-        // 1. DIUBAH: Pake 'unshift' supaya data terbaru langsung masuk ke urutan PALING ATAS
-        logs.unshift({ username, role, action, timestamp });
-        
-        // 2. DITAMBAHKAN: Batasi maksimal hanya menyimpan 300 aktivitas terakhir
-        if (logs.length > 300) {
-            logs = logs.slice(0, 300); // Memotong dan membuang data lama setelah baris ke-300
-        }
-        
-        fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
-    } catch (err) {
-        console.error("Gagal menulis log aktivitas login/logout:", err.message);
     }
+    
+    // Format Waktu Jakarta/WIB
+    const timestamp = new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
+    
+    // Memasukkan data baru ke baris paling atas (indeks 0)
+    logs.unshift({ username, role, action, timestamp });
+    
+    // Batasi maksimum hanya menyimpan 300 log terbaru
+    if (logs.length > 300) {
+        logs = logs.slice(0, 300);
+    }
+    
+    fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
 }
 // --- SETUP STATIC FILES ---
 app.use(express.static(__dirname));
