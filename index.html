@@ -119,6 +119,10 @@
 
     <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
       <h4 style="color: var(--accent-2); font-size: 12px; margin-bottom: 10px;">REGISTERED USERS LIST</h4>
+      <div style="margin-bottom: 12px; width: 100%;">
+        <input type="text" id="search-username" onkeyup="filterUserTable()" placeholder="Cari username..." 
+        style="width: 100%; padding: 8px 12px; background: #111622; border: 1px solid var(--stroke-1); border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box; outline: none;">
+      </div>
       <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
         <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
           <thead>
