@@ -1091,34 +1091,41 @@ async function actionDeleteAccount(username) {
   }
 
   async function fetchSuperadminLogs() {
-      try {
-          const res = await fetch('/api/logs');
-          const data = await res.json();
-          const tbody = document.getElementById('log-table-body');
-          if (data.success && Array.isArray(data.logs)) {
-              tbody.innerHTML = '';
-              if (data.logs.length === 0) {
-                  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#aaa;">Belum ada log aktivitas.</td></tr>';
-                  return;
-              }
-              data.logs.forEach(log => {
-                  const badgeClass = log.action === 'LOGIN' ? 'badge-login' : 'badge-logout';
-                  tbody.innerHTML += `
-                      <tr>
-                          <td style="color:#aaa">${log.timestamp}</td>
-                          <td style="font-weight:600; color:#fff">${log.username}</td>
-                          <td><span style="color:var(--accent-2)">${log.role}</span></td>
-                          <td><span class="${badgeClass}">${log.action}</span></td>
-                      </tr>
-                  `;
-              });
-          } else {
-              document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Gagal memuat log data.</td></tr>';
-          }
-      } catch (err) {
-          document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Koneksi error.</td></tr>';
-      }
-  }
+    try {
+        const res = await fetch('/api/logs');
+        const data = await res.json();
+        const tbody = document.getElementById('log-table-body');
+        
+        if (data.success && Array.isArray(data.logs)) {
+            tbody.innerHTML = '';
+            
+            if (data.logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#aaa;">Belum ada log aktivitas.</td></tr>';
+                return;
+            }
+            
+            // PERUBAHAN DI SINI: Membalik urutan array agar data terbaru menjadi yang paling pertama
+            const reversedLogs = data.logs.reverse();
+            
+            // Sekarang kita lakukan perulangan dari data yang sudah dibalik
+            reversedLogs.forEach(log => {
+                const badgeClass = log.action === 'LOGIN' ? 'badge-login' : 'badge-logout';
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="color:#aaa">${log.timestamp}</td>
+                        <td style="font-weight:600; color:#fff">${log.username}</td>
+                        <td><span style="color:var(--accent-2)">${log.role}</span></td>
+                        <td><span class="${badgeClass}">${log.action}</span></td>
+                    </tr>
+                `;
+            });
+        } else {
+            document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Gagal memuat log data.</td></tr>';
+        }
+    } catch (err) {
+        document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Koneksi error.</td></tr>';
+    }
+}
 
   async function createNewAccount() {
     const userEl = document.getElementById('new-username');
