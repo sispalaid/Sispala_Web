@@ -206,6 +206,32 @@ async function loginAsGuest() {
     initClock();
   }
 
+  function filterUserTable() {
+    // Ambil teks yang diketik dan ubah ke huruf kecil semua (case-insensitive)
+    const input = document.getElementById('search-username');
+    const filter = input.value.toLowerCase();
+    
+    const tbody = document.getElementById('table-users-body');
+    const rows = tbody.getElementsByTagName('tr');
+
+    // Looping semua baris di dalam tbody
+    for (let i = 0; i < rows.length; i++) {
+        // Ambil kolom pertama (indeks 0) yang berisi Username
+        const usernameCell = rows[i].getElementsByTagName('td')[0];
+        
+        if (usernameCell) {
+            const usernameText = usernameCell.textContent || usernameCell.innerText;
+            
+            // Jika teks kecocokan ditemukan, tampilkan barisnya. Jika tidak, sembunyikan.
+            if (usernameText.toLowerCase().indexOf(filter) > -1) {
+                rows[i].style.display = "";
+            } else {
+                rows[i].style.display = "none";
+            }
+        }
+    }
+}
+
   function closeJumpModal() {
     const modal = document.getElementById('jump-modal');
     if (modal) modal.style.display = 'none';
