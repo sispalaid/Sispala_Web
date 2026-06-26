@@ -269,10 +269,6 @@ def start_ffmpeg(
         cmd += [
             '-thread_queue_size', '1024',
             '-rtsp_transport', rtsp_transport,
-            '-reconnect', '1',
-            '-reconnect_at_eof', '1',
-            '-reconnect_streamed', '1',
-            '-reconnect_delay_max', '10',
             '-timeout', '15000000',
             '-i', source
         ]
@@ -360,10 +356,6 @@ def start_ffmpeg_decode(source, width, height, fps, decode_device, rtsp_transpor
         '-hide_banner',
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
-        '-reconnect', '1',
-        '-reconnect_at_eof', '1',
-        '-reconnect_streamed', '1',
-        '-reconnect_delay_max', '10',
         '-timeout', '15000000',  # 15 seconds timeout in microseconds
         '-hwaccel', 'vaapi',
         '-hwaccel_device', decode_device,
