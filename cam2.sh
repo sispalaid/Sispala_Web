@@ -2,6 +2,7 @@
 echo -ne "\033]0;Cam2 - RC2\007"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR" || exit
+export PYTHONUNBUFFERED=1
 source ~/sispala-ai/bin/activate
 
 # Load environment variables dynamically

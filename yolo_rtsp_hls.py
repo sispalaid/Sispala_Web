@@ -487,8 +487,8 @@ def main():
                     except Exception:
                         pass
                     ffmpeg = None
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF trigger=decode_ffmpeg_pipe_broke action=killed_both_ffmpegs")
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF trigger=decode_ffmpeg_pipe_broke action=restarting_decode_ffmpeg delay=5s")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF trigger=decode_ffmpeg_pipe_broke action=killed_both_ffmpegs", flush=True)
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF trigger=decode_ffmpeg_pipe_broke action=restarting_decode_ffmpeg delay=5s", flush=True)
                 time.sleep(5.0)
                 decode_proc = start_ffmpeg_decode(
                     args.source,
@@ -498,7 +498,7 @@ def main():
                     args.decode_device,
                     args.rtsp_transport
                 )
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF action=decode_ffmpeg_restarted")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF action=decode_ffmpeg_restarted", flush=True)
                 # ffmpeg will be recreated when the first successful frame reaches the encode section
                 continue
             # Decode NV12 from raw bytes to BGR frame in Python using OpenCV's fast color conversion
@@ -516,14 +516,14 @@ def main():
                     except Exception:
                         pass
                     ffmpeg = None
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed trigger=opencv_read_returned_false action=killed_encode_ffmpeg")
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed trigger=opencv_read_returned_false action=reopening_cv2_capture delay=5s")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed trigger=opencv_read_returned_false action=killed_encode_ffmpeg", flush=True)
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed trigger=opencv_read_returned_false action=reopening_cv2_capture delay=5s", flush=True)
                 time.sleep(5.0)
                 cap = cv2.VideoCapture(args.source)
                 if hasattr(cv2, 'CAP_PROP_TIMEOUT_MS'):
                     cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
                 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed action=cv2_capture_reopened")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed action=cv2_capture_reopened", flush=True)
                 # ffmpeg will be recreated when the first successful frame reaches the encode section
                 continue
 
@@ -614,21 +614,21 @@ def main():
                     target_bitrate
                 )
                 consecutive_ffmpeg_crashes = 0
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decode_side_recovery action=encode_ffmpeg_lazily_restarted")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decode_side_recovery action=encode_ffmpeg_lazily_restarted", flush=True)
             # Convert BGR to YUV420p (I420) to optimize piping bandwidth and bypass FFmpeg CPU-heavy color math
             yuv_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2YUV_I420)
             ffmpeg.stdin.write(yuv_frame.tobytes())
             consecutive_ffmpeg_crashes = 0
         except (BrokenPipeError, AttributeError, OSError):
             consecutive_ffmpeg_crashes += 1
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken trigger=stdin_write_failed consecutive={consecutive_ffmpeg_crashes}/3")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken trigger=stdin_write_failed consecutive={consecutive_ffmpeg_crashes}/3", flush=True)
             if consecutive_ffmpeg_crashes >= 3:
                 if ffmpeg:
                     try:
                         ffmpeg.kill()
                     except Exception:
                         pass
-                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken action=giving_up_after_3_attempts exit=full_process_restart")
+                print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken action=giving_up_after_3_attempts exit=full_process_restart", flush=True)
                 raise SystemExit(f"FFmpeg crashed repeatedly for {args.cam}. Exiting to allow storage re-selection.")
             
             if ffmpeg:
@@ -655,7 +655,7 @@ def main():
                 has_audio,
                 target_bitrate
             )
-            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken action=encode_ffmpeg_restarted")
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken action=encode_ffmpeg_restarted", flush=True)
 
 
 if __name__ == '__main__':

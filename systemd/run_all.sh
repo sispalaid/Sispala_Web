@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$SCRIPT_DIR" || exit 1
 
+export PYTHONUNBUFFERED=1
+
 cleanup() {
   if [[ -n "${NODE_PID:-}" ]]; then
     kill "$NODE_PID" 2>/dev/null || true
