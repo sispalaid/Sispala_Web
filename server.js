@@ -930,12 +930,28 @@ if (!fs.existsSync(AUDIO_DIR)) {
 }
 const AUDIO_DIR_PATH = global.AUDIO_DIR_PATH || AUDIO_DIR;
 
+// ── DEFAULT AUDIO FILES ────────────────────────────────────────────
+// Files listed here are tagged "(Default)" in UI, cannot be deleted,
+// and serve as fallbacks when a configured file is missing.
+// They're looked up in: 1) project root, then 2) /home/sispala/audio/
+// EDIT THIS LIST to add/remove default audio files.
+const DEFAULT_AUDIO_FILES = [
+    'Alarm.mpeg',
+    // 'Siren.wav',       // <-- uncomment and add your files here
+    // 'Warning.mp3',     // <-- uncomment and add your files here
+];
+
+// ── DEFAULT SELECTIONS (first-run config) ──────────────────────────
+const DEFAULT_ALARM_FILE  = DEFAULT_AUDIO_FILES[0];   // CH1 alarm button
+const DEFAULT_SIRINE_FILE = DEFAULT_AUDIO_FILES[0];   // CH2 sirine button
+// ───────────────────────────────────────────────────────────────────
+
 const AUDIO_CONFIG_FILE = path.join(__dirname, 'audio_config.json');
 function readAudioConfig() {
     if (!fs.existsSync(AUDIO_CONFIG_FILE)) {
         const defaultConfig = {
-            alarmFile: 'Alarm.mpeg',
-            sirineFile: 'Alarm.mpeg',
+            alarmFile: DEFAULT_ALARM_FILE,
+            sirineFile: DEFAULT_SIRINE_FILE,
             masterVolume: 100
         };
         fs.writeFileSync(AUDIO_CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
@@ -945,8 +961,8 @@ function readAudioConfig() {
         return JSON.parse(fs.readFileSync(AUDIO_CONFIG_FILE, 'utf8'));
     } catch (e) {
         return {
-            alarmFile: 'Alarm.mpeg',
-            sirineFile: 'Alarm.mpeg',
+            alarmFile: DEFAULT_ALARM_FILE,
+            sirineFile: DEFAULT_SIRINE_FILE,
             masterVolume: 100
         };
     }
@@ -1038,19 +1054,37 @@ function requireSuperadmin(req, res, next) {
     }
 }
 
+// Helper to resolve the real path of a default file (checks project root, then audio library)
+function getDefaultFilePath(filename) {
+    // 1) Project root
+    const rootPath = path.join(__dirname, filename);
+    if (fs.existsSync(rootPath)) return rootPath;
+    // 2) Audio library (/home/sispala/audio/)
+    const libPath = path.join(AUDIO_DIR_PATH, filename);
+    if (fs.existsSync(libPath)) return libPath;
+    return null;
+}
+
+// Helper to check if a filename is a default (protected) file
+function isDefaultFile(filename) {
+    return DEFAULT_AUDIO_FILES.includes(filename);
+}
+
 // Helper to resolve the correct path for a configured audio file
 function getAudioFilePath(filename) {
     if (!filename) return null;
-    if (filename === 'Alarm.mpeg' && fs.existsSync(path.join(__dirname, 'Alarm.mpeg'))) {
-        return path.join(__dirname, 'Alarm.mpeg');
+    // Check if it's a default file
+    if (isDefaultFile(filename)) {
+        const resolved = getDefaultFilePath(filename);
+        if (resolved) return resolved;
     }
+    // Check in the audio library directory
     const pathInLib = path.join(AUDIO_DIR_PATH, filename);
-    if (fs.existsSync(pathInLib)) {
-        return pathInLib;
-    }
-    // Fallback to Alarm.mpeg locally if not found
-    if (fs.existsSync(path.join(__dirname, 'Alarm.mpeg'))) {
-        return path.join(__dirname, 'Alarm.mpeg');
+    if (fs.existsSync(pathInLib)) return pathInLib;
+    // Fallback: try each default file in order
+    for (const def of DEFAULT_AUDIO_FILES) {
+        const fallback = getDefaultFilePath(def);
+        if (fallback) return fallback;
     }
     return null;
 }
@@ -1097,22 +1131,26 @@ app.post('/api/audio/upload', requireSuperadmin, (req, res) => {
 app.get('/api/audio/list', requireSuperadmin, (req, res) => {
     try {
         const files = fs.readdirSync(AUDIO_DIR_PATH);
+        const seen = new Set();
         const audioFiles = [];
         
-        // Include default Alarm.mpeg in the list if it exists
-        const localAlarmPath = path.join(__dirname, 'Alarm.mpeg');
-        if (fs.existsSync(localAlarmPath)) {
-            const stats = fs.statSync(localAlarmPath);
-            audioFiles.push({
-                filename: 'Alarm.mpeg',
-                size: stats.size,
-                mtime: stats.mtime,
-                isDefault: true
-            });
+        // Include all default files (found in project root OR audio library)
+        for (const def of DEFAULT_AUDIO_FILES) {
+            const defPath = getDefaultFilePath(def);
+            if (defPath) {
+                seen.add(def);
+                const stats = fs.statSync(defPath);
+                audioFiles.push({
+                    filename: def,
+                    size: stats.size,
+                    mtime: stats.mtime,
+                    isDefault: true
+                });
+            }
         }
         
         files.forEach(file => {
-            if (file === 'Alarm.mpeg') return;
+            if (seen.has(file)) return;  // skip duplicates (already added as default)
             const filePath = path.join(AUDIO_DIR_PATH, file);
             const stats = fs.statSync(filePath);
             if (stats.isFile()) {
@@ -1135,8 +1173,8 @@ app.get('/api/audio/list', requireSuperadmin, (req, res) => {
 // 5. Delete an audio file
 app.delete('/api/audio/:filename', requireSuperadmin, (req, res) => {
     const filename = req.params.filename;
-    if (filename === 'Alarm.mpeg') {
-        return res.status(400).json({ error: 'File default Alarm.mpeg tidak dapat dihapus!' });
+    if (isDefaultFile(filename)) {
+        return res.status(400).json({ error: `File default "${filename}" tidak dapat dihapus!` });
     }
     const filePath = path.join(AUDIO_DIR_PATH, filename);
     if (!fs.existsSync(filePath)) {
