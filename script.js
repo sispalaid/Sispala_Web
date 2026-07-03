@@ -24,6 +24,91 @@ const streams = [
     meridiem: 'AM'
   };
 
+(function () {
+  var EXPAND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>';
+  var COMPRESS_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3M16 3v3a2 2 0 0 0 2 2h3M3 16h3a2 2 0 0 1 2 2v3M21 16h-3a2 2 0 0 0-2 2v3"/></svg>';
+
+  function fsElement() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+  function requestFs(el) {
+    try {
+      if (el.requestFullscreen) return el.requestFullscreen();
+      if (el.webkitRequestFullscreen) return el.webkitRequestFullscreen();
+      if (el.webkitRequestFullScreen) return el.webkitRequestFullScreen();
+    } catch (e) {}
+  }
+  function exitFs() {
+    try {
+      if (document.exitFullscreen) return document.exitFullscreen();
+      if (document.webkitExitFullscreen) return document.webkitExitFullscreen();
+    } catch (e) {}
+  }
+  function toggleFs(cell) {
+    if (fsElement() === cell) { exitFs(); } else { requestFs(cell); }
+  }
+
+  function makeButton(cell) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cam-fs-btn';
+    btn.setAttribute('aria-label', 'Fullscreen kamera');
+    btn.setAttribute('title', 'Fullscreen (ESC untuk keluar)');
+    btn.innerHTML = EXPAND_SVG;
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFs(cell);
+    });
+    return btn;
+  }
+
+  function injectInto(cell) {
+    if (!cell || cell.querySelector('.cam-fs-btn')) return;
+    cell.appendChild(makeButton(cell));
+  }
+
+  function injectAll() {
+    var cells = document.querySelectorAll('.cam-cell');
+    for (var i = 0; i < cells.length; i++) injectInto(cells[i]);
+  }
+
+  function updateIcons() {
+    var active = fsElement();
+    var btns = document.querySelectorAll('.cam-fs-btn');
+    for (var i = 0; i < btns.length; i++) {
+      var btn = btns[i];
+      var cell = btn.closest ? btn.closest('.cam-cell') : null;
+      var on = cell && active === cell;
+      btn.innerHTML = on ? COMPRESS_SVG : EXPAND_SVG;
+      btn.setAttribute('title', on ? 'Keluar fullscreen (ESC)' : 'Fullscreen (ESC untuk keluar)');
+    }
+  }
+
+  function start() {
+    injectAll();
+    var grid = document.getElementById('video-grid');
+    if (grid && typeof MutationObserver !== 'undefined') {
+      new MutationObserver(injectAll).observe(grid, { childList: true });
+    }
+    // Safety net in case cameras are rendered late by script.js
+    var tries = 0;
+    var iv = setInterval(function () {
+      injectAll();
+      if (++tries >= 12) clearInterval(iv);
+    }, 700);
+  }
+
+  document.addEventListener('fullscreenchange', updateIcons);
+  document.addEventListener('webkitfullscreenchange', updateIcons);
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
+
   const grid = document.getElementById('video-grid');
   streams.forEach(stream => {
     grid.innerHTML += `
