@@ -1256,3 +1256,214 @@ label {
 .plyr--full-ui input[type='range'] {
   color: var(--accent-1);
 }
+
+/* ==================================================================
+   CAMERA FULLSCREEN FEATURE (ADDED) — does not alter existing styles
+   Small toggle icon at top-right of each camera, revealed on hover.
+   In fullscreen, only the camera video is shown (cleanest view).
+   ================================================================== */
+.cam-cell .cam-fs-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 40;
+  width: 34px;
+  height: 34px;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid var(--accent-1);
+  background: rgba(11, 23, 38, 0.78);
+  color: var(--accent-1);
+  cursor: pointer;
+  line-height: 0;
+  letter-spacing: 0;
+  text-transform: none;
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transform: translateY(-4px) scale(0.96);
+  transition: opacity 0.18s ease, transform 0.18s ease, background 0.18s ease,
+    color 0.18s ease, box-shadow 0.18s ease;
+}
+.cam-cell .cam-fs-btn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  pointer-events: none;
+}
+.cam-cell .cam-fs-btn:hover {
+  background: var(--accent-1);
+  color: #ffffff;
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 4px 12px rgba(31, 143, 209, 0.35);
+}
+/* Reveal on camera hover or keyboard focus */
+.cam-cell:hover .cam-fs-btn,
+.cam-cell .cam-fs-btn:focus-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+/* Touch devices (no hover) — keep the icon gently visible */
+@media (hover: none) {
+  .cam-cell .cam-fs-btn {
+    opacity: 0.85;
+    transform: none;
+  }
+}
+
+/* ----- Fullscreen layout: show ONLY the camera video ----- */
+.cam-cell:fullscreen {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  transform: none;
+  animation: none;
+}
+.cam-cell:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+  transform: none;
+  animation: none;
+}
+/* Hide custom control bar + status badge in fullscreen for the cleanest look */
+.cam-cell:fullscreen .controls,
+.cam-cell:fullscreen .status-tag {
+  display: none !important;
+}
+.cam-cell:-webkit-full-screen .controls,
+.cam-cell:-webkit-full-screen .status-tag {
+  display: none !important;
+}
+/* Let the player / video fill the screen */
+.cam-cell:fullscreen .plyr,
+.cam-cell:fullscreen .plyr__video-wrapper {
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+}
+.cam-cell:-webkit-full-screen .plyr,
+.cam-cell:-webkit-full-screen .plyr__video-wrapper {
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+}
+.cam-cell:fullscreen video {
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  object-fit: contain;
+  aspect-ratio: auto;
+  background: #000;
+}
+.cam-cell:-webkit-full-screen video {
+  width: 100%;
+  height: 100%;
+  max-height: 100vh;
+  object-fit: contain;
+  aspect-ratio: auto;
+  background: #000;
+}
+/* Keep the toggle button visible and a bit larger while in fullscreen */
+.cam-cell:fullscreen .cam-fs-btn {
+  opacity: 1;
+  transform: none;
+  top: 18px;
+  right: 18px;
+  width: 40px;
+  height: 40px;
+  z-index: 2147483647;
+}
+.cam-cell:-webkit-full-screen .cam-fs-btn {
+  opacity: 1;
+  transform: none;
+  top: 18px;
+  right: 18px;
+  width: 40px;
+  height: 40px;
+  z-index: 2147483647;
+}
+
+/* Sembunyikan kontrol bawaan pemutar (bar play/volume + gear setting + tombol
+   play besar) saat fullscreen — di fullscreen HANYA ada video + tombol
+   keluar-fullscreen. Hanya berlaku saat fullscreen; grid normal tidak berubah. */
+.cam-cell:fullscreen .plyr__controls,
+.cam-cell:fullscreen .plyr__control--overlaid,
+.cam-cell:fullscreen .plyr__menu,
+.cam-cell:fullscreen .plyr__captions {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.cam-cell:-webkit-full-screen .plyr__controls,
+.cam-cell:-webkit-full-screen .plyr__control--overlaid,
+.cam-cell:-webkit-full-screen .plyr__menu,
+.cam-cell:-webkit-full-screen .plyr__captions {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* ==================================================================
+   LIGHT MODE — PERBAIKAN KONTRAS TEKS (ADDED)
+   Membuat teks lebih gelap & mudah dibaca di light mode.
+   HANYA berlaku saat light mode; dark mode tidak terpengaruh sama sekali.
+   ================================================================== */
+
+/* 1) Token teks light mode dibuat lebih gelap.
+   Otomatis memperbaiki banyak label, isi tabel, teks muted, timestamp, dll. */
+[data-theme="light"] {
+  --ink-2: #33557b;   /* sebelumnya #4d6e92 (terlalu terang) */
+  --ink-3: #4f6b8c;   /* sebelumnya #92a8c2 (sangat sulit dibaca) */
+  --log-text: #24364a;
+}
+
+/* 2) Heading/label biru-muda hardcoded yang sulit dibaca -> biru tua kontras */
+[data-theme="light"] [style*="#9bc1ff"],
+[data-theme="light"] [style*="#9fd9ff"] {
+  color: #14517f !important;
+}
+
+/* 3) Heading section yang memakai warna accent (biru/kuning) sebagai TEKS
+   -> digelapkan agar kontras di latar putih (kuning di putih tidak terbaca). */
+[data-theme="light"] [style*="color: var(--accent-1)"],
+[data-theme="light"] [style*="color: var(--accent-2)"] {
+  color: #0a4d78 !important;
+}
+
+/* 4) Header & isi tabel lebih kontras */
+[data-theme="light"] .log-table th { color: #0a4d78; }
+[data-theme="light"] .log-table td { color: #233b55; }
+
+/* 5) Teks nama file pada input file tidak putih di atas latar terang */
+[data-theme="light"] input[type="file"] { color: var(--ink-1) !important; }
+
+/* 6) Tombol kecil berlatar terang (mis. "Refresh Library") -> teks gelap */
+[data-theme="light"] button[style*="background: var(--stroke-2)"] {
+  color: var(--ink-1) !important;
+}
+
+/* 7) Area log auto-cleanup: warna teks default dibuat lebih gelap */
+[data-theme="light"] #storage-cleanup-log-container { color: #24364a; }
+
+/* 8) Teks muted/sekunder eksplisit ikut lebih gelap */
+[data-theme="light"] .text-muted,
+[data-theme="light"] .storage-updated,
+[data-theme="light"] .time-hint { color: #33557b; }
