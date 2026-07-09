@@ -971,73 +971,49 @@ if (!fs.existsSync(AUDIO_DIR)) {
 const AUDIO_DIR_PATH = global.AUDIO_DIR_PATH || AUDIO_DIR;
 
 // ── DEFAULT AUDIO FILES ────────────────────────────────────────────
-// Files listed here are tagged "(Default)" in UI, cannot be deleted,
-// and serve as fallbacks when a configured file is missing.
-// They're looked up in: 1) project root, then 2) /home/sispala/audio/
-// EDIT THIS LIST to add/remove default audio files.
-const DEFAULT_AUDIO_FILES = [
-    'Alarm.mpeg',
-    // 'Siren.wav',       // <-- uncomment and add your files here
-    // 'Warning.mp3',     // <-- uncomment and add your files here
-];
-
-// ── DEFAULT SELECTIONS (first-run config) ──────────────────────────
-const DEFAULT_ALARM_FILE  = DEFAULT_AUDIO_FILES[0];   // CH1 alarm button
-const DEFAULT_SIRINE_FILE = DEFAULT_AUDIO_FILES[0];   // CH2 sirine button
-// ───────────────────────────────────────────────────────────────────
-
+// The default audio library configurations are loaded from `audio_library.json`
+// (which is copied on startup from `audio_library.json.example` if missing).
 const AUDIO_LIBRARY_FILE = path.join(__dirname, 'audio_library.json');
 const AUDIO_LIBRARY_EXAMPLE_FILE = path.join(__dirname, 'audio_library.json.example');
 
+const DEFAULT_FALLBACK_LIBRARY = [
+  {
+    filename: "Alarm.mpeg",
+    size: 151867,
+    mtime: new Date().toISOString(),
+    isDefault: true,
+    defaultChannel: "stereo"
+  }
+];
+
 function readAudioLibrary() {
-    let lib = [];
     // If main file is missing, try to initialize it from example template
-    if (!fs.existsSync(AUDIO_LIBRARY_FILE) && fs.existsSync(AUDIO_LIBRARY_EXAMPLE_FILE)) {
-        try {
-            fs.copyFileSync(AUDIO_LIBRARY_EXAMPLE_FILE, AUDIO_LIBRARY_FILE);
-        } catch (err) {
-            console.error("Gagal menyalin file audio_library.json.example:", err.message);
+    if (!fs.existsSync(AUDIO_LIBRARY_FILE)) {
+        if (fs.existsSync(AUDIO_LIBRARY_EXAMPLE_FILE)) {
+            try {
+                fs.copyFileSync(AUDIO_LIBRARY_EXAMPLE_FILE, AUDIO_LIBRARY_FILE);
+            } catch (err) {
+                console.error("Gagal menyalin file audio_library.json.example:", err.message);
+            }
+        } else {
+            // Fallback if example is also missing
+            try {
+                const stats = fs.statSync(getDefaultFilePath('Alarm.mpeg') || 'Alarm.mpeg');
+                DEFAULT_FALLBACK_LIBRARY[0].size = stats.size;
+                DEFAULT_FALLBACK_LIBRARY[0].mtime = stats.mtime.toISOString();
+            } catch (e) {}
+            saveAudioLibrary(DEFAULT_FALLBACK_LIBRARY);
         }
     }
 
     if (fs.existsSync(AUDIO_LIBRARY_FILE)) {
         try {
-            lib = JSON.parse(fs.readFileSync(AUDIO_LIBRARY_FILE, 'utf8'));
+            return JSON.parse(fs.readFileSync(AUDIO_LIBRARY_FILE, 'utf8'));
         } catch (e) {
-            lib = [];
+            return [];
         }
     }
-    
-    // Ensure all default files are in the library
-    let modified = false;
-    DEFAULT_AUDIO_FILES.forEach(def => {
-        const found = lib.find(item => item.filename === def);
-        if (!found) {
-            const defPath = getDefaultFilePath(def);
-            let size = 0;
-            let mtime = new Date().toISOString();
-            if (defPath) {
-                try {
-                    const stats = fs.statSync(defPath);
-                    size = stats.size;
-                    mtime = stats.mtime.toISOString();
-                } catch (e) {}
-            }
-            lib.push({
-                filename: def,
-                size: size,
-                mtime: mtime,
-                isDefault: true,
-                defaultChannel: 'stereo'
-            });
-            modified = true;
-        }
-    });
-    
-    if (modified) {
-        saveAudioLibrary(lib);
-    }
-    return lib;
+    return [];
 }
 
 function saveAudioLibrary(lib) {
@@ -1048,12 +1024,22 @@ function saveAudioLibrary(lib) {
     }
 }
 
+function getDefaultAudioFile() {
+    try {
+        const lib = readAudioLibrary();
+        const found = lib.find(item => item.isDefault);
+        if (found) return found.filename;
+    } catch (e) {}
+    return 'Alarm.mpeg';
+}
+
 const AUDIO_CONFIG_FILE = path.join(__dirname, 'audio_config.json');
 function readAudioConfig() {
+    const defFile = getDefaultAudioFile();
     if (!fs.existsSync(AUDIO_CONFIG_FILE)) {
         const defaultConfig = {
-            alarmFile: DEFAULT_ALARM_FILE,
-            sirineFile: DEFAULT_SIRINE_FILE,
+            alarmFile: defFile,
+            sirineFile: defFile,
             masterVolume: 100
         };
         fs.writeFileSync(AUDIO_CONFIG_FILE, JSON.stringify(defaultConfig, null, 2));
@@ -1063,8 +1049,8 @@ function readAudioConfig() {
         return JSON.parse(fs.readFileSync(AUDIO_CONFIG_FILE, 'utf8'));
     } catch (e) {
         return {
-            alarmFile: DEFAULT_ALARM_FILE,
-            sirineFile: DEFAULT_SIRINE_FILE,
+            alarmFile: defFile,
+            sirineFile: defFile,
             masterVolume: 100
         };
     }
@@ -1198,7 +1184,13 @@ function getDefaultFilePath(filename) {
 
 // Helper to check if a filename is a default (protected) file
 function isDefaultFile(filename) {
-    return DEFAULT_AUDIO_FILES.includes(filename);
+    try {
+        const lib = readAudioLibrary();
+        const found = lib.find(item => item.filename === filename);
+        return found ? !!found.isDefault : false;
+    } catch (e) {
+        return false;
+    }
 }
 
 // Helper to resolve the correct path for a configured audio file
@@ -1212,11 +1204,16 @@ function getAudioFilePath(filename) {
     // Check in the audio library directory
     const pathInLib = path.join(AUDIO_DIR_PATH, filename);
     if (fs.existsSync(pathInLib)) return pathInLib;
-    // Fallback: try each default file in order
-    for (const def of DEFAULT_AUDIO_FILES) {
-        const fallback = getDefaultFilePath(def);
-        if (fallback) return fallback;
-    }
+    
+    // Fallback: try each default file in order from JSON library
+    try {
+        const lib = readAudioLibrary();
+        const defaults = lib.filter(item => item.isDefault);
+        for (const def of defaults) {
+            const fallback = getDefaultFilePath(def.filename);
+            if (fallback) return fallback;
+        }
+    } catch (e) {}
     return null;
 }
 
