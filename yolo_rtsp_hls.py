@@ -534,6 +534,9 @@ def main():
     out_size = parse_size(args.resolution)
     inf_size = parse_size(args.inference_size)
 
+    min_free_gb = int(os.environ.get('MIN_FREE_GB', 5))
+    min_free_bytes = min_free_gb * 1024 * 1024 * 1024
+
     # Ensure our startup directory matches the active storage state before we capture
     check_and_rotate_storage(args.record_dir, min_free_bytes)
 
@@ -605,8 +608,6 @@ def main():
     consecutive_ffmpeg_crashes = 0
     last_cleanup_time = 0
     cleanup_interval = 60
-    min_free_gb = int(os.environ.get('MIN_FREE_GB', 5))
-    min_free_bytes = min_free_gb * 1024 * 1024 * 1024
 
     while True:
         now_time = time.time()
