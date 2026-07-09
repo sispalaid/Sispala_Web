@@ -90,7 +90,7 @@
 
 <div class="grid" id="video-grid"></div>
 
-<div class="mid-alarm-container" style="display: flex; gap: 15px; justify-content: center; align-items: center;">
+<div class="mid-alarm-container" id="alarm-container" style="display: flex; gap: 15px; justify-content: center; align-items: center;">
   <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM (CH 1)</button>
   <button id="sirineToggle" class="btn-alarm" onclick="toggleSirine()">BUNYIKAN SIRINE (CH 2)</button>
 </div>
@@ -235,7 +235,7 @@
   </div>
 </div>
 
-<div class="playback-panel">
+<div class="playback-panel" id="playback-panel">
   <div class="playback-header">
     <h3 style="font-size: 15px; text-transform: uppercase; letter-spacing: 1.2px;">RECORDING PLAYBACK (NVR)</h3>
     <div class="playback-actions">
@@ -315,7 +315,7 @@
   </div>
 </div>
 
-<div class="storage-panel">
+<div class="storage-panel" id="storage-panel">
   <div class="storage-header">
     <div class="storage-title">STORAGE PROJECTION</div>
     <div id="storage-updated" class="storage-updated">Waiting for data...</div>

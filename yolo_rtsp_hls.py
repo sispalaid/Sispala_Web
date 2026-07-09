@@ -3,6 +3,8 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+import re
 import threading
 import time
 
@@ -153,73 +155,207 @@ def probe_rtsp(source, rtsp_transport):
         return False, None
 
 
-def cleanup_old_recordings(active_record_dir, min_free_bytes):
-    # Check active recording directory, and other common/preferred locations
-    dirs_to_check = [active_record_dir]
-    
-    possible_dirs = [
-        "/home/sispala/archive",
-        "/mnt/ext/Recordings",
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "Recordings")
-    ]
-    for d in possible_dirs:
-        norm_d = os.path.abspath(d)
-        if os.path.exists(norm_d) and norm_d not in [os.path.abspath(x) for x in dirs_to_check]:
-            dirs_to_check.append(norm_d)
+def cleanup_old_recordings(record_dir, min_free_bytes):
+    try:
+        total, used, free = shutil.disk_usage(record_dir)
+    except Exception:
+        return
 
-    for record_dir in dirs_to_check:
+    if free >= min_free_bytes:
+        return
+
+    msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Storage Alert: Free space on '{record_dir}' is low ({free / (1024**3):.2f} GB remaining). Running cleanup...\n"
+    print(msg.strip())
+    try:
+        with open('cleanup.log', 'a') as f:
+            f.write(msg)
+    except Exception as e:
+        print(f"Error writing to cleanup.log: {e}")
+
+    mp4_files = []
+    for root, dirs, files in os.walk(record_dir):
+        for file in files:
+            if file.endswith('.mp4'):
+                full_path = os.path.join(root, file)
+                mp4_files.append((file, full_path))
+
+    # Sort by filename (timestamp YYYY-MM-DD_HH-MM.mp4)
+    mp4_files.sort(key=lambda x: x[0])
+
+    deleted_count = 0
+    freed_bytes = 0
+    for file_name, file_path in mp4_files:
         try:
             total, used, free = shutil.disk_usage(record_dir)
-        except Exception:
-            continue
+            if free >= min_free_bytes:
+                break
+            file_size = os.path.getsize(file_path)
+            os.remove(file_path)
+            deleted_count += 1
+            freed_bytes += file_size
+            del_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Deleted old recording: {file_name} ({file_size / (1024**2):.1f} MB freed)\n"
+            print(del_msg.strip())
+            with open('cleanup.log', 'a') as f:
+                f.write(del_msg)
+        except Exception as e:
+            print(f"Error deleting file {file_path}: {e}")
 
-        if free >= min_free_bytes:
-            continue
-
-        msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Storage Alert: Free space on '{record_dir}' is low ({free / (1024**3):.2f} GB remaining). Running auto-cleanup...\n"
-        print(msg.strip())
+    if deleted_count > 0:
+        done_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Cleanup complete. Successfully freed {freed_bytes / (1024**3):.2f} GB by deleting {deleted_count} file(s).\n"
+        print(done_msg.strip())
         try:
             with open('cleanup.log', 'a') as f:
-                f.write(msg)
-        except Exception as e:
-            print(f"Error writing to cleanup.log: {e}")
+                f.write(done_msg)
+        except Exception:
+            pass
 
-        mp4_files = []
-        for root, dirs, files in os.walk(record_dir):
-            for file in files:
-                if file.endswith('.mp4'):
-                    full_path = os.path.join(root, file)
-                    mp4_files.append((file, full_path))
 
-        # Sort by filename (timestamp YYYY-MM-DD_HH-MM.mp4)
-        mp4_files.sort(key=lambda x: x[0])
+def get_available_candidates(script_dir):
+    candidates = []
+    
+    # 1. Primary candidate
+    candidates.append("/home/sispala/archive")
+    
+    # 2. Secondary candidate
+    candidates.append("/mnt/ext/Recordings")
+    
+    # 3. Dynamically read other mount points under /mnt, /media, /run/media
+    if os.path.exists('/proc/mounts'):
+        try:
+            with open('/proc/mounts', 'r') as f:
+                for line in f:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        mnt = parts[1]
+                        if mnt.startswith(('/mnt/', '/media/', '/run/media/')):
+                            if mnt != "/mnt/ext":
+                                candidates.append(os.path.join(mnt, "Recordings"))
+        except Exception:
+            pass
+            
+    # 4. Fallback candidate (local Recordings)
+    candidates.append(os.path.join(script_dir, "Recordings"))
+    
+    # Filter candidates to keep only those that exist (or can be created) and are writeable
+    valid_candidates = []
+    seen = set()
+    for c in candidates:
+        abs_c = os.path.abspath(c)
+        if abs_c in seen:
+            continue
+        seen.add(abs_c)
+        
+        try:
+            os.makedirs(abs_c, exist_ok=True)
+            if os.access(abs_c, os.W_OK):
+                valid_candidates.append(abs_c)
+        except Exception:
+            pass
+            
+    return valid_candidates
 
-        deleted_count = 0
-        freed_bytes = 0
-        for file_name, file_path in mp4_files:
-            try:
-                total, used, free = shutil.disk_usage(record_dir)
-                if free >= min_free_bytes:
-                    break
-                file_size = os.path.getsize(file_path)
-                os.remove(file_path)
-                deleted_count += 1
-                freed_bytes += file_size
-                del_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Deleted old recording: {file_name} ({file_size / (1024**2):.1f} MB freed)\n"
-                print(del_msg.strip())
-                with open('cleanup.log', 'a') as f:
-                    f.write(del_msg)
-            except Exception as e:
-                print(f"Error deleting file {file_path}: {e}")
 
-        if deleted_count > 0:
-            done_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Auto-cleanup complete. Successfully freed {freed_bytes / (1024**3):.2f} GB by deleting {deleted_count} file(s).\n"
-            print(done_msg.strip())
-            try:
-                with open('cleanup.log', 'a') as f:
-                    f.write(done_msg)
-            except Exception:
-                pass
+def get_oldest_recording_file(directory):
+    first_file = None
+    for root, dirs, files in os.walk(directory):
+        mp4s = [f for f in files if f.endswith('.mp4')]
+        if mp4s:
+            mp4s.sort()
+            candidate = mp4s[0]
+            if first_file is None or candidate < first_file:
+                first_file = candidate
+    return first_file
+
+
+def check_and_rotate_storage(current_record_dir, min_free_bytes):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    state_file = os.path.join(script_dir, 'active_storage.txt')
+    
+    # 1. Read state file to see if another process already switched the active directory
+    active_path = None
+    if os.path.exists(state_file):
+        try:
+            with open(state_file, 'r') as f:
+                active_path = f.read().strip()
+        except Exception:
+            pass
+            
+    if active_path:
+        if os.path.abspath(current_record_dir) != os.path.abspath(active_path):
+            print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active storage changed to {active_path}. Restarting process to switch directory...")
+            sys.exit(0)
+            
+    # 2. Check space on our current record dir
+    try:
+        total, used, free = shutil.disk_usage(current_record_dir)
+    except Exception as e:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Error checking disk usage: {e}")
+        return
+        
+    if free >= min_free_bytes:
+        return # Plenty of space left
+        
+    # Active disk is full! Find all writeable candidates
+    candidates = get_available_candidates(script_dir)
+    
+    # Filter out current directory since it is full
+    other_candidates = [c for c in candidates if os.path.abspath(c) != os.path.abspath(current_record_dir)]
+    
+    if not other_candidates:
+        # No other available writeable disks! Fall back to file-by-file cleanup on the current disk
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active disk is full, but no other writeable storage candidates found. Falling back to file-by-file cleanup on current disk...")
+        cleanup_old_recordings(current_record_dir, min_free_bytes)
+        return
+        
+    # Find the candidate with the oldest recordings to write to
+    best_candidate = None
+    oldest_file_time = None
+    
+    for c in other_candidates:
+        try:
+            c_free = shutil.disk_usage(c).free
+        except Exception:
+            continue
+            
+        oldest_file = get_oldest_recording_file(c)
+        
+        # If candidate has free space and has NO recordings, it is empty and ready!
+        if c_free >= min_free_bytes and oldest_file is None:
+            best_candidate = c
+            break
+            
+        if oldest_file:
+            if oldest_file_time is None or oldest_file < oldest_file_time:
+                oldest_file_time = oldest_file
+                best_candidate = c
+                
+    if not best_candidate:
+        best_candidate = other_candidates[0]
+        
+    # If the best candidate is the current directory (which shouldn't happen here as it's filtered out,
+    # but as safe logic if we fall back), or if we decided to stay on current:
+    if os.path.abspath(best_candidate) == os.path.abspath(current_record_dir):
+        cleanup_old_recordings(current_record_dir, min_free_bytes)
+        return
+        
+    # Switch to the selected best candidate!
+    msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active disk ({current_record_dir}) is full. Rotating writing path to ({best_candidate}) containing the oldest global footage...\n"
+    print(msg.strip())
+    try:
+        with open('cleanup.log', 'a') as f:
+            f.write(msg)
+    except Exception:
+        pass
+        
+    # Update state file
+    try:
+        with open(state_file, 'w') as f:
+            f.write(best_candidate)
+    except Exception as e:
+        print(f"Failed to update state file: {e}")
+        
+    # Exit so that the shell script wrapper restarts the process on the new active directory
+    sys.exit(0)
 
 
 def start_ffmpeg(
@@ -398,6 +534,9 @@ def main():
     out_size = parse_size(args.resolution)
     inf_size = parse_size(args.inference_size)
 
+    # Ensure our startup directory matches the active storage state before we capture
+    check_and_rotate_storage(args.record_dir, min_free_bytes)
+
     while True:
         cap = cv2.VideoCapture(args.source)
         if cap.isOpened():
@@ -473,7 +612,7 @@ def main():
         now_time = time.time()
         if now_time - last_cleanup_time > cleanup_interval:
             last_cleanup_time = now_time
-            cleanup_old_recordings(args.record_dir, min_free_bytes)
+            check_and_rotate_storage(args.record_dir, min_free_bytes)
         if decode_proc:
             frame_bytes = int(width * height * 1.5)
             data = decode_proc.stdout.read(frame_bytes)

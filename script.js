@@ -945,10 +945,10 @@ async function actionDeleteAccount(username) {
             </td>
             <td style="padding: 8px 6px; color: var(--ink-2);">${formatBytes(file.size)}</td>
             <td style="padding: 8px 6px;">
-              <select id="channel-${index}" style="padding: 2px 4px; font-size: 11px; margin-bottom: 0; width: 100%;">
-                <option value="stereo">Stereo (CH 1 + CH 2)</option>
-                <option value="left">Left Only (CH 1)</option>
-                <option value="right">Right Only (CH 2)</option>
+              <select id="channel-${index}" onchange="changeDefaultChannel('${file.filename}', this.value)" style="padding: 2px 4px; font-size: 11px; margin-bottom: 0; width: 100%;">
+                <option value="stereo" ${file.defaultChannel === 'stereo' ? 'selected' : ''}>Stereo (CH 1 + CH 2)</option>
+                <option value="left" ${file.defaultChannel === 'left' ? 'selected' : ''}>Left Only (CH 1)</option>
+                <option value="right" ${file.defaultChannel === 'right' ? 'selected' : ''}>Right Only (CH 2)</option>
               </select>
             </td>
             <td style="padding: 8px 6px; text-align: center; display: flex; gap: 4px; justify-content: center;">
@@ -1160,6 +1160,30 @@ async function actionDeleteAccount(username) {
     }
   }
 
+  async function changeDefaultChannel(filename, channel) {
+    const msgEl = document.getElementById('audio-console-msg');
+    try {
+      const res = await fetch('/api/audio/update-channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename, defaultChannel: channel })
+      });
+      const data = await res.json();
+      if (data.success && msgEl) {
+        msgEl.style.color = 'var(--accent-1)';
+        msgEl.textContent = `Channel default untuk "${filename}" diubah ke ${channel.toUpperCase()}.`;
+      } else if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = data.error || 'Gagal mengubah channel default.';
+      }
+    } catch (e) {
+      if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = 'Koneksi error ke server.';
+      }
+    }
+  }
+
   function applyPermissions(role) {
       document.getElementById('login-overlay').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
@@ -1168,37 +1192,43 @@ async function actionDeleteAccount(username) {
       initializeStreams();
 
       const cleanupBlock = document.getElementById('auto-cleanup-block');
-      const alarmBtn = document.getElementById('alarmToggle');
-      const sirineBtn = document.getElementById('sirineToggle');
       const superadminPanel = document.getElementById('superadmin-panel');
       const systemLogsPanel = document.getElementById('system-logs-panel');
       
-      if (role === 'admin' || role === 'superadmin') {
-          if (alarmBtn) alarmBtn.style.display = 'inline-block'; 
-          if (sirineBtn) sirineBtn.style.display = 'inline-block';
-      } else {
-          if (alarmBtn) alarmBtn.style.display = 'none'; 
-          if (sirineBtn) sirineBtn.style.display = 'none';
-      }
+      const alarmContainer = document.getElementById('alarm-container');
+      const playbackPanel = document.getElementById('playback-panel');
+      const storagePanel = document.getElementById('storage-panel');
 
-      if (role === 'superadmin') {
-          superadminPanel.style.display = 'block';
-          systemLogsPanel.style.display = 'block';
-          cleanupBlock.style.display = 'block';
+      if (role === 'guest') {
+          if (alarmContainer) alarmContainer.style.display = 'none';
+          if (playbackPanel) playbackPanel.style.display = 'none';
+          if (storagePanel) storagePanel.style.display = 'none';
+          if (superadminPanel) superadminPanel.style.display = 'none';
+          if (systemLogsPanel) systemLogsPanel.style.display = 'none';
+          if (cleanupBlock) cleanupBlock.style.display = 'none';
+          toggleAutoRefreshLogs(false);
+      } else if (role === 'admin') {
+          if (alarmContainer) alarmContainer.style.display = 'flex';
+          if (playbackPanel) playbackPanel.style.display = 'block';
+          if (storagePanel) storagePanel.style.display = 'block';
+          if (superadminPanel) superadminPanel.style.display = 'none';
+          if (systemLogsPanel) systemLogsPanel.style.display = 'none';
+          if (cleanupBlock) cleanupBlock.style.display = 'none';
+          toggleAutoRefreshLogs(false);
+      } else if (role === 'superadmin') {
+          if (alarmContainer) alarmContainer.style.display = 'flex';
+          if (playbackPanel) playbackPanel.style.display = 'block';
+          if (storagePanel) storagePanel.style.display = 'block';
+          if (superadminPanel) superadminPanel.style.display = 'block';
+          if (systemLogsPanel) systemLogsPanel.style.display = 'block';
+          if (cleanupBlock) cleanupBlock.style.display = 'block';
           fetchSuperadminLogs();
           fetchSystemLogs();
           fetchStorageCleanupLogs();
           updateUsernameSuggestions();
           fetchAudioLibrary();
           fetchAudioConfig();
-      } else {
-          superadminPanel.style.display = 'none';
-          systemLogsPanel.style.display = 'none';
-          cleanupBlock.style.display = 'none';
-          toggleAutoRefreshLogs(false);
       }
-
-      
   }
 
   async function fetchSuperadminLogs() {

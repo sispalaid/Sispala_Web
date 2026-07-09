@@ -7,3 +7,6 @@ Recordings/
 users.json
 login_logs.json
 .env
+audio_library.json
+active_storage.txt
+sessions/

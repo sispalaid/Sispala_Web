@@ -29,10 +29,50 @@ if (fs.existsSync(dotenvPath)) {
 const session = require('express-session');
 const bodyParser = require('body-parser');
 
+const Store = session.Store;
+class FileSessionStore extends Store {
+    constructor(options = {}) {
+        super(options);
+        this.dir = options.dir || path.join(__dirname, 'sessions');
+        if (!fs.existsSync(this.dir)) {
+            fs.mkdirSync(this.dir, { recursive: true });
+        }
+    }
+    get(sid, cb) {
+        const filePath = path.join(this.dir, `${sid}.json`);
+        fs.readFile(filePath, 'utf8', (err, data) => {
+            if (err) {
+                if (err.code === 'ENOENT') return cb(null, null);
+                return cb(err);
+            }
+            try {
+                cb(null, JSON.parse(data));
+            } catch (parseErr) {
+                cb(parseErr);
+            }
+        });
+    }
+    set(sid, sessionData, cb) {
+        const filePath = path.join(this.dir, `${sid}.json`);
+        fs.writeFile(filePath, JSON.stringify(sessionData), (err) => {
+            if (err) return cb && cb(err);
+            if (cb) cb(null);
+        });
+    }
+    destroy(sid, cb) {
+        const filePath = path.join(this.dir, `${sid}.json`);
+        fs.unlink(filePath, (err) => {
+            if (err && err.code !== 'ENOENT') return cb && cb(err);
+            if (cb) cb(null);
+        });
+    }
+}
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use(session({
+    store: new FileSessionStore(),
     secret: process.env.SESSION_SECRET || 'sispala-secret-key-fallback',
     resave: false,
     saveUninitialized: true,
@@ -116,7 +156,7 @@ app.use(express.static(__dirname));
 const recordingsDirName = 'Recordings';
 const recordingsRoot = path.join(__dirname, recordingsDirName);
 
-app.get('/recordings/:cam/:file', (req, res) => {
+app.get('/recordings/:cam/:file', requireAdminOrSuperadmin, (req, res) => {
     const { cam, file } = req.params;
     const roots = getRecordingRoots();
     for (const root of roots) {
@@ -128,7 +168,7 @@ app.get('/recordings/:cam/:file', (req, res) => {
                 }
                 return res.sendFile(filePath, (err) => {
                     if (err) {
-                        if (err.code === 'ECONNRESET' || err.code === 'EPIPE') {
+                        if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || (err.message && err.message.includes('aborted'))) {
                             // Client disconnected, standard browser behavior
                             return;
                         }
@@ -570,8 +610,8 @@ app.get('/api/system-logs', (req, res) => {
     }
 });
 
-// BARU: API untuk Mengambil Log Auto-Cleanup untuk Storage Panel (Terbuka untuk memantau kapasitas)
-app.get('/api/cleanup-log', (req, res) => {
+// BARU: API untuk Mengambil Log Auto-Cleanup untuk Storage Panel (Terbuka untuk memantau kapasitas, restricted to superadmin)
+app.get('/api/cleanup-log', requireSuperadmin, (req, res) => {
     const logPath = path.join(__dirname, 'cleanup.log');
     if (!fs.existsSync(logPath)) {
         return res.json({ success: true, logs: 'Belum ada aktivitas pembersihan otomatis.' });
@@ -587,7 +627,7 @@ app.get('/api/cleanup-log', (req, res) => {
 });
 
 // --- API: Ambil Daftar Rekaman ---
-app.get('/api/recordings/:cam', (req, res) => {
+app.get('/api/recordings/:cam', requireAdminOrSuperadmin, (req, res) => {
     const cam = req.params.cam;
     const roots = getRecordingRoots();
     const allFiles = new Set();
@@ -904,7 +944,7 @@ function startStorageMonitor() {
 }
 
 // --- API: Storage Stats (Capacity + Throughput + ETA) ---
-app.get('/api/storage-stats', async (req, res) => {
+app.get('/api/storage-stats', requireAdminOrSuperadmin, async (req, res) => {
     try {
         if (!cachedStorageStats) {
             await updateStorageStats();
@@ -946,6 +986,68 @@ const DEFAULT_ALARM_FILE  = DEFAULT_AUDIO_FILES[0];   // CH1 alarm button
 const DEFAULT_SIRINE_FILE = DEFAULT_AUDIO_FILES[0];   // CH2 sirine button
 // ───────────────────────────────────────────────────────────────────
 
+const AUDIO_LIBRARY_FILE = path.join(__dirname, 'audio_library.json');
+const AUDIO_LIBRARY_EXAMPLE_FILE = path.join(__dirname, 'audio_library.json.example');
+
+function readAudioLibrary() {
+    let lib = [];
+    // If main file is missing, try to initialize it from example template
+    if (!fs.existsSync(AUDIO_LIBRARY_FILE) && fs.existsSync(AUDIO_LIBRARY_EXAMPLE_FILE)) {
+        try {
+            fs.copyFileSync(AUDIO_LIBRARY_EXAMPLE_FILE, AUDIO_LIBRARY_FILE);
+        } catch (err) {
+            console.error("Gagal menyalin file audio_library.json.example:", err.message);
+        }
+    }
+
+    if (fs.existsSync(AUDIO_LIBRARY_FILE)) {
+        try {
+            lib = JSON.parse(fs.readFileSync(AUDIO_LIBRARY_FILE, 'utf8'));
+        } catch (e) {
+            lib = [];
+        }
+    }
+    
+    // Ensure all default files are in the library
+    let modified = false;
+    DEFAULT_AUDIO_FILES.forEach(def => {
+        const found = lib.find(item => item.filename === def);
+        if (!found) {
+            const defPath = getDefaultFilePath(def);
+            let size = 0;
+            let mtime = new Date().toISOString();
+            if (defPath) {
+                try {
+                    const stats = fs.statSync(defPath);
+                    size = stats.size;
+                    mtime = stats.mtime.toISOString();
+                } catch (e) {}
+            }
+            lib.push({
+                filename: def,
+                size: size,
+                mtime: mtime,
+                isDefault: true,
+                defaultChannel: 'stereo'
+            });
+            modified = true;
+        }
+    });
+    
+    if (modified) {
+        saveAudioLibrary(lib);
+    }
+    return lib;
+}
+
+function saveAudioLibrary(lib) {
+    try {
+        fs.writeFileSync(AUDIO_LIBRARY_FILE, JSON.stringify(lib, null, 2));
+    } catch (err) {
+        console.error("Gagal menyimpan audio library ke file JSON:", err.message);
+    }
+}
+
 const AUDIO_CONFIG_FILE = path.join(__dirname, 'audio_config.json');
 function readAudioConfig() {
     if (!fs.existsSync(AUDIO_CONFIG_FILE)) {
@@ -980,7 +1082,28 @@ function setSystemVolume(vol) {
     // 1. Try pactl (PulseAudio/PipeWire) first
     exec(`pactl set-sink-volume @DEFAULT_SINK@ ${vol}%`, (err) => {
         if (err) {
-            console.warn(`[Volume Sync Warning]: pactl failed: ${err.message}`);
+            // Fallback: list all sinks and set volume for each of them
+            exec('pactl list short sinks', (listErr, stdout) => {
+                if (!listErr && stdout) {
+                    const lines = stdout.trim().split('\n');
+                    lines.forEach(line => {
+                        const parts = line.split(/\s+/);
+                        if (parts.length > 0) {
+                            const sinkIdentifier = parts[0];
+                            if (sinkIdentifier) {
+                                exec(`pactl set-sink-volume ${sinkIdentifier} ${vol}%`, () => {});
+                            }
+                        }
+                    });
+                } else {
+                    // Only log warning if PulseAudio daemon is actually running
+                    exec('pactl info', (infoErr) => {
+                        if (!infoErr) {
+                            console.warn(`[Volume Sync Warning]: pactl failed to set volume: ${err.message}`);
+                        }
+                    });
+                }
+            });
         }
     });
 
@@ -1054,6 +1177,14 @@ function requireSuperadmin(req, res, next) {
     }
 }
 
+function requireAdminOrSuperadmin(req, res, next) {
+    if (req.session.user && (req.session.user.role === 'admin' || req.session.user.role === 'superadmin')) {
+        next();
+    } else {
+        res.status(403).json({ error: 'Unauthorized: Akses dibatasi untuk Admin atau Superadmin saja.' });
+    }
+}
+
 // Helper to resolve the real path of a default file (checks project root, then audio library)
 function getDefaultFilePath(filename) {
     // 1) Project root
@@ -1123,48 +1254,30 @@ app.post('/api/audio/upload', requireSuperadmin, (req, res) => {
         if (!req.file) {
             return res.status(400).json({ error: 'Silakan pilih file audio untuk diunggah!' });
         }
-        res.json({ success: true, message: `File audio "${req.file.filename}" berhasil diunggah!`, filename: req.file.filename });
+        try {
+            const lib = readAudioLibrary();
+            lib.push({
+                filename: req.file.filename,
+                size: req.file.size,
+                mtime: new Date().toISOString(),
+                isDefault: false,
+                defaultChannel: 'stereo'
+            });
+            saveAudioLibrary(lib);
+            res.json({ success: true, message: `File audio "${req.file.filename}" berhasil diunggah!`, filename: req.file.filename });
+        } catch (e) {
+            res.status(500).json({ error: 'Gagal memperbarui database audio: ' + e.message });
+        }
     });
 });
 
 // 4. List all audio files
 app.get('/api/audio/list', requireSuperadmin, (req, res) => {
     try {
-        const files = fs.readdirSync(AUDIO_DIR_PATH);
-        const seen = new Set();
-        const audioFiles = [];
-        
-        // Include all default files (found in project root OR audio library)
-        for (const def of DEFAULT_AUDIO_FILES) {
-            const defPath = getDefaultFilePath(def);
-            if (defPath) {
-                seen.add(def);
-                const stats = fs.statSync(defPath);
-                audioFiles.push({
-                    filename: def,
-                    size: stats.size,
-                    mtime: stats.mtime,
-                    isDefault: true
-                });
-            }
-        }
-        
-        files.forEach(file => {
-            if (seen.has(file)) return;  // skip duplicates (already added as default)
-            const filePath = path.join(AUDIO_DIR_PATH, file);
-            const stats = fs.statSync(filePath);
-            if (stats.isFile()) {
-                audioFiles.push({
-                    filename: file,
-                    size: stats.size,
-                    mtime: stats.mtime,
-                    isDefault: false
-                });
-            }
-        });
-        
-        audioFiles.sort((a, b) => b.mtime - a.mtime);
-        res.json({ success: true, files: audioFiles });
+        const lib = readAudioLibrary();
+        // Sort by mtime descending
+        lib.sort((a, b) => new Date(b.mtime) - new Date(a.mtime));
+        res.json({ success: true, files: lib });
     } catch (e) {
         res.status(500).json({ error: 'Gagal membaca library audio: ' + e.message });
     }
@@ -1177,14 +1290,42 @@ app.delete('/api/audio/:filename', requireSuperadmin, (req, res) => {
         return res.status(400).json({ error: `File default "${filename}" tidak dapat dihapus!` });
     }
     const filePath = path.join(AUDIO_DIR_PATH, filename);
-    if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'File audio tidak ditemukan.' });
-    }
     try {
-        fs.unlinkSync(filePath);
+        const lib = readAudioLibrary();
+        const idx = lib.findIndex(item => item.filename === filename);
+        if (idx !== -1) {
+            lib.splice(idx, 1);
+            saveAudioLibrary(lib);
+        }
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
         res.json({ success: true, message: `File audio "${filename}" berhasil dihapus!` });
     } catch (e) {
         res.status(500).json({ error: 'Gagal menghapus file: ' + e.message });
+    }
+});
+
+// 6. Update default channel configuration
+app.post('/api/audio/update-channel', requireSuperadmin, (req, res) => {
+    const { filename, defaultChannel } = req.body;
+    if (!filename || !defaultChannel) {
+        return res.status(400).json({ success: false, error: 'Filename dan defaultChannel harus diisi.' });
+    }
+    if (!['stereo', 'left', 'right'].includes(defaultChannel)) {
+        return res.status(400).json({ success: false, error: 'Channel tidak valid.' });
+    }
+    try {
+        const lib = readAudioLibrary();
+        const found = lib.find(item => item.filename === filename);
+        if (!found) {
+            return res.status(404).json({ success: false, error: 'File tidak ditemukan di library.' });
+        }
+        found.defaultChannel = defaultChannel;
+        saveAudioLibrary(lib);
+        res.json({ success: true, message: 'Channel default berhasil diperbarui!' });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 
