@@ -35,6 +35,7 @@ def parse_args():
     parser.add_argument('--rtsp-transport', required=True, choices=['tcp', 'udp'], help='RTSP transport')
     parser.add_argument('--bitrate', default='1.5M', help='Fallback video encoding bitrate (e.g. 1.5M, 1500k)')
     parser.add_argument('--timeout', type=int, default=15, help='RTSP stream connection/read timeout (seconds)')
+    parser.add_argument('--audio', action='store_true', help='Enable RTSP audio stream recording')
     return parser.parse_args()
 
 
@@ -303,7 +304,10 @@ def start_ffmpeg(
     segment_time,
     encoder,
     hw_device,
-    bitrate
+    bitrate,
+    has_audio,
+    source,
+    rtsp_transport
 ):
     hls_path = os.path.join(streams_dir, 'index.m3u8')
     segment_pattern = os.path.join(streams_dir, 'seg%03d.ts')
@@ -330,8 +334,19 @@ def start_ffmpeg(
         '-i', '-',
     ]
 
+    # Input 1: RTSP input stream for audio (only if available)
+    if has_audio:
+        cmd += [
+            '-thread_queue_size', '1024',
+            '-rtsp_transport', rtsp_transport,
+            '-timeout', '15000000',
+            '-i', source
+        ]
+
     # --- Output 1: Live HLS Stream (Hardware Encoding) ---
     cmd += ['-map', '0:v']
+    if has_audio:
+        cmd += ['-map', '1:a']
 
     if encoder == 'qsv':
         cmd += [
@@ -346,6 +361,12 @@ def start_ffmpeg(
 
     # Apply target video bitrate
     cmd += ['-b:v', bitrate]
+
+    if has_audio:
+        cmd += [
+            '-af', 'aresample=async=1',
+            '-c:a', 'aac',
+        ]
 
     cmd += [
         '-g', str(gop),
@@ -361,6 +382,8 @@ def start_ffmpeg(
 
     # --- Output 2: MP4 recordings (Hardware Encoding) ---
     cmd += ['-map', '0:v']
+    if has_audio:
+        cmd += ['-map', '1:a']
 
     if encoder == 'qsv':
         cmd += [
@@ -375,6 +398,12 @@ def start_ffmpeg(
 
     # Apply target video bitrate
     cmd += ['-b:v', bitrate]
+
+    if has_audio:
+        cmd += [
+            '-af', 'aresample=async=1',
+            '-c:a', 'aac',
+        ]
 
     cmd += [
         '-g', str(gop),
@@ -608,7 +637,10 @@ def main():
                 args.segment_time,
                 args.encoder,
                 args.hw_device,
-                target_bitrate
+                target_bitrate,
+                args.audio,
+                args.source,
+                args.rtsp_transport
             )
 
         try:
@@ -626,7 +658,10 @@ def main():
                     args.segment_time,
                     args.encoder,
                     args.hw_device,
-                    target_bitrate
+                    target_bitrate,
+                    args.audio,
+                    args.source,
+                    args.rtsp_transport
                 )
                 consecutive_ffmpeg_crashes = 0
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decode_side_recovery action=encode_ffmpeg_lazily_restarted", flush=True)
@@ -665,7 +700,10 @@ def main():
                 args.segment_time,
                 args.encoder,
                 args.hw_device,
-                target_bitrate
+                target_bitrate,
+                args.audio,
+                args.source,
+                args.rtsp_transport
             )
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken action=encode_ffmpeg_restarted", flush=True)
 

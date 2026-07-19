@@ -12,11 +12,24 @@ set +a
 
 MODEL_PATH="${CAM1_MODEL_PATH:-/home/sispala/yolo26n.engine}"
 DEVICE="${CAM1_DEVICE:-cuda:0}"
-RTSP_URL="${CAM1_RTSP_URL:-rtsp://admin:password@192.168.0.x:554/stream1}"
 BITRATE="${CAM1_BITRATE:-1.5M}"
 TIMEOUT="${CAM1_TIMEOUT:-15}"
 RTSP_TRANSPORT="${CAM1_RTSP_TRANSPORT:-tcp}"
 OUT_RES=""
+
+# Detect local RTSP proxy (MediaMTX) or fallback to direct URL
+if (timeout 1 bash -c '</dev/tcp/127.0.0.1/8554' 2>/dev/null); then
+	RTSP_URL="rtsp://127.0.0.1:8554/cam1"
+	echo "[cam1] Local RTSP proxy detected. Routing via proxy: $RTSP_URL"
+else
+	RTSP_URL="${CAM1_RTSP_URL:-rtsp://admin:password@192.168.0.x:554/stream1}"
+	echo "[cam1] Local RTSP proxy not running. Routing directly: $RTSP_URL"
+fi
+
+AUDIO_FLAG=""
+if [ "${CAM1_AUDIO:-off}" = "on" ]; then
+	AUDIO_FLAG="--audio"
+fi
 
 while true; do
 	RECORD_DIR=$("$SCRIPT_DIR/storage_select.sh")
@@ -40,6 +53,7 @@ while true; do
 		--decode-device "/dev/dri/by-path/pci-0000:00:02.0-render" \
 		--rtsp-transport "$RTSP_TRANSPORT" \
 		--bitrate "$BITRATE" \
-		--timeout "$TIMEOUT"
+		--timeout "$TIMEOUT" \
+		$AUDIO_FLAG
 	sleep 2
 done

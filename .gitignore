@@ -10,3 +10,6 @@ login_logs.json
 audio_library.json
 active_storage.txt
 sessions/
+mediamtx
+mediamtx.yml
+mediamtx.tar.gz
