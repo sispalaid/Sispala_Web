@@ -15,6 +15,7 @@ DEVICE="${CAM2_DEVICE:-cuda:0}"
 RTSP_URL="${CAM2_RTSP_URL:-rtsp://admin:password@192.168.0.x:554/stream1}"
 BITRATE="${CAM2_BITRATE:-1.5M}"
 TIMEOUT="${CAM2_TIMEOUT:-15}"
+RTSP_TRANSPORT="${CAM2_RTSP_TRANSPORT:-tcp}"
 OUT_RES=""
 
 while true; do
@@ -37,7 +38,7 @@ while true; do
 		--hw-device "/dev/dri/by-path/pci-0000:00:02.0-render" \
 		--hw-decode "on" \
 		--decode-device "/dev/dri/by-path/pci-0000:00:02.0-render" \
-		--rtsp-transport "tcp" \
+		--rtsp-transport "$RTSP_TRANSPORT" \
 		--bitrate "$BITRATE" \
 		--timeout "$TIMEOUT"
 	sleep 2
