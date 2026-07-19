@@ -14,6 +14,7 @@ MODEL_PATH="${CAM4_MODEL_PATH:-/home/sispala/yolo26n.engine}"
 DEVICE="${CAM4_DEVICE:-cuda:0}"
 RTSP_URL="${CAM4_RTSP_URL:-rtsp://admin:password@192.168.0.x:554/stream1}"
 BITRATE="${CAM4_BITRATE:-1.5M}"
+TIMEOUT="${CAM4_TIMEOUT:-15}"
 OUT_RES=""
 
 while true; do
@@ -37,6 +38,7 @@ while true; do
 		--hw-decode "on" \
 		--decode-device "/dev/dri/by-path/pci-0000:00:02.0-render" \
 		--rtsp-transport "tcp" \
-		--bitrate "$BITRATE"
+		--bitrate "$BITRATE" \
+		--timeout "$TIMEOUT"
 	sleep 2
 done

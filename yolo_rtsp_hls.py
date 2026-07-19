@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument('--decode-device', required=True, help='Decode render device path')
     parser.add_argument('--rtsp-transport', required=True, choices=['tcp', 'udp'], help='RTSP transport')
     parser.add_argument('--bitrate', default='1.5M', help='Fallback video encoding bitrate (e.g. 1.5M, 1500k)')
+    parser.add_argument('--timeout', type=int, default=15, help='RTSP stream connection/read timeout (seconds)')
     return parser.parse_args()
 
 
@@ -78,6 +79,7 @@ def log_startup(args, width, height, fps, out_size, inf_size, encode_fps):
         f'decode={decode_state}, '
         f'decode_device={args.decode_device}, '
         f'rtsp_transport={args.rtsp_transport}, '
+        f'timeout={args.timeout}s, '
         f'device={args.device}, '
         f'thresh={args.thresh}'
     )
@@ -388,14 +390,14 @@ def start_ffmpeg(
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
 
-def start_ffmpeg_decode(source, width, height, fps, decode_device, rtsp_transport):
+def start_ffmpeg_decode(source, width, height, fps, decode_device, rtsp_transport, timeout_seconds):
     cmd = [
         'ffmpeg',
         '-nostdin',
         '-hide_banner',
         '-loglevel', 'error',
         '-rtsp_transport', rtsp_transport,
-        '-timeout', '15000000',  # 15 seconds timeout in microseconds
+        '-timeout', str(timeout_seconds * 1000000),  # timeout in microseconds
         '-hwaccel', 'vaapi',
         '-hwaccel_device', decode_device,
         '-hwaccel_output_format', 'vaapi',
@@ -440,7 +442,7 @@ def main():
         cap = cv2.VideoCapture(args.source)
         if cap.isOpened():
             if hasattr(cv2, 'CAP_PROP_TIMEOUT_MS'):
-                cap.set(cv2.CAP_PROP_TIMEOUT_MS, 5000)  # 5 seconds timeout in milliseconds
+                cap.set(cv2.CAP_PROP_TIMEOUT_MS, args.timeout * 1000)  # Convert seconds to milliseconds
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             fps = parse_fps(args.fps, cap.get(cv2.CAP_PROP_FPS) or 15)
             if fps <= 0:
@@ -470,7 +472,8 @@ def main():
             height,
             fps,
             args.decode_device,
-            args.rtsp_transport
+            args.rtsp_transport,
+            args.timeout
         )
 
     ffmpeg = None
@@ -513,7 +516,8 @@ def main():
                     height,
                     fps,
                     args.decode_device,
-                    args.rtsp_transport
+                    args.rtsp_transport,
+                    args.timeout
                 )
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF action=decode_ffmpeg_restarted", flush=True)
                 # ffmpeg will be recreated when the first successful frame reaches the encode section
