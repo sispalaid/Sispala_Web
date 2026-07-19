@@ -35,11 +35,6 @@ def main():
                 close_after = env_vars.get(f'CAM{i}_PROXY_ON_DEMAND_CLOSE_AFTER', '10s')
                 cam_lines.append(f"    sourceOnDemandCloseAfter: {close_after}")
                 
-            # 3. Configurable Proxy Reconnect Delay
-            reconnect_delay = env_vars.get(f'CAM{i}_PROXY_RECONNECT_DELAY')
-            if reconnect_delay:
-                cam_lines.append(f"    sourceRestartDelay: {reconnect_delay}")
-                
             paths.append("\n".join(cam_lines))
     
     config = f"""# MediaMTX configuration (generated dynamically)
