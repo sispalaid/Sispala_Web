@@ -292,7 +292,32 @@ async function loginAsGuest() {
   let currentTrackX = 0;
   let draggedTimeSeconds = 0;
 
-
+  function setNVRStatus(status) {
+    const badge = document.getElementById('nvr-status-badge');
+    if (!badge) return;
+    
+    if (status === 'buffering') {
+      badge.textContent = 'BUFFERING...';
+      badge.style.background = 'rgba(243, 156, 18, 0.15)';
+      badge.style.color = '#f39c12';
+      badge.style.border = '1px solid rgba(243, 156, 18, 0.3)';
+      badge.style.display = 'inline-block';
+    } else if (status === 'playing') {
+      badge.textContent = 'PLAYING';
+      badge.style.background = 'rgba(46, 204, 113, 0.15)';
+      badge.style.color = '#2ecc71';
+      badge.style.border = '1px solid rgba(46, 204, 113, 0.3)';
+      badge.style.display = 'inline-block';
+    } else if (status === 'paused') {
+      badge.textContent = 'PAUSED';
+      badge.style.background = 'rgba(127, 140, 141, 0.15)';
+      badge.style.color = '#95a5a6';
+      badge.style.border = '1px solid rgba(127, 140, 141, 0.3)';
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
 
   function alignTimelineToSeconds(seconds) {
     const timelineWrapper = document.getElementById('nvrTimelineWrapper');
@@ -361,7 +386,7 @@ async function loginAsGuest() {
     if (selectedRecording) {
       const file = playbackQueue.find(f => f.name === selectedRecording.name);
       if (file) {
-        const currentMs = file.timestampMs + (historyPlayer.currentTime * 1000);
+        const currentMs = file.timestampMs + (plyr.currentTime * 1000);
         updatePlayhead(currentMs);
       } else {
         alignTimelineToSeconds(0);
@@ -447,23 +472,31 @@ async function loginAsGuest() {
       selectedRecording = { cam, name: filename, timestampMs: parseRecordingTimestamp(filename) };
       playbackIndex = playbackQueue.findIndex((item) => item.name === filename);
       
+      setNVRStatus('buffering');
       setRecordingsSource(cam, filename);
       updateSelectedUI(filename);
       
       playingNowSpan.innerText = `Playing: ${cam} - ${filename}`;
       playingNowSpan.style.color = '#9fd9ff';
       
-      const onCanPlay = () => {
-        historyPlayer.currentTime = offsetSec;
-        historyPlayer.play().catch(() => {});
-        historyPlayer.removeEventListener('canplay', onCanPlay);
+      const onReady = () => {
+        plyr.currentTime = offsetSec;
+        plyr.play().then(() => {
+          setNVRStatus('playing');
+        }).catch(() => {
+          setNVRStatus('paused');
+        });
+        plyr.off('ready', onReady);
       };
-      historyPlayer.addEventListener('canplay', onCanPlay);
+      plyr.on('ready', onReady);
     } else {
-      historyPlayer.currentTime = offsetSec;
-      if (historyPlayer.paused) {
-        historyPlayer.play().catch(() => {});
-      }
+      setNVRStatus('buffering');
+      plyr.currentTime = offsetSec;
+      plyr.play().then(() => {
+        setNVRStatus('playing');
+      }).catch(() => {
+        setNVRStatus('paused');
+      });
     }
   }
 
@@ -812,15 +845,27 @@ async function loginAsGuest() {
   }
 
   function selectRecording(cam, filename, autoPlay = false) {
-    selectedRecording = { cam, name: filename };
+    selectedRecording = { cam, name: filename, timestampMs: parseRecordingTimestamp(filename) };
     playbackIndex = playbackQueue.findIndex((item) => item.name === filename);
+    
+    setNVRStatus('buffering');
     setRecordingsSource(cam, filename);
     updateSelectedUI(filename);
 
     playingNowSpan.innerText = `Ready: ${cam} - ${filename}`;
     playingNowSpan.style.color = '#9fd9ff';
 
-    if (autoPlay) { historyPlayer.play(); } else { historyPlayer.pause(); }
+    const onReady = () => {
+      plyr.currentTime = 0;
+      if (autoPlay) {
+        plyr.play().then(() => setNVRStatus('playing')).catch(() => setNVRStatus('paused'));
+      } else {
+        plyr.pause();
+        setNVRStatus('paused');
+      }
+      plyr.off('ready', onReady);
+    };
+    plyr.on('ready', onReady);
   }
 
   function confirmJumpTime() {
@@ -1665,17 +1710,39 @@ async function actionDeleteAccount(username) {
     }
   };
 
-  historyPlayer.addEventListener('play', () => {
+  plyr.on('play', () => {
     continuousPlayback = true;
+    setNVRStatus('playing');
     if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name}`; playingNowSpan.style.color = '#3498db'; }
   });
-  historyPlayer.addEventListener('pause', () => { if (!historyPlayer.ended) continuousPlayback = false; });
-  historyPlayer.addEventListener('ended', () => { if (continuousPlayback) playNextInQueue(); });
-  historyPlayer.addEventListener('timeupdate', () => {
-    if (!historyPlayer.paused && selectedRecording) {
-      const currentMs = selectedRecording.timestampMs + (historyPlayer.currentTime * 1000);
+  plyr.on('pause', () => {
+    if (!plyr.ended) {
+      continuousPlayback = false;
+      setNVRStatus('paused');
+    }
+  });
+  plyr.on('ended', () => {
+    if (continuousPlayback) {
+      setNVRStatus('buffering');
+      playNextInQueue();
+    } else {
+      setNVRStatus('paused');
+    }
+  });
+  plyr.on('timeupdate', () => {
+    if (!plyr.paused && selectedRecording) {
+      const currentMs = selectedRecording.timestampMs + (plyr.currentTime * 1000);
       updatePlayhead(currentMs);
     }
+  });
+  plyr.on('waiting', () => {
+    setNVRStatus('buffering');
+  });
+  plyr.on('seeking', () => {
+    setNVRStatus('buffering');
+  });
+  plyr.on('playing', () => {
+    setNVRStatus('playing');
   });
 
   async function handleLogin() {
