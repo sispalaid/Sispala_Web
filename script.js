@@ -150,25 +150,7 @@ const streams = [
   const historyPlayer = document.getElementById('historyPlayer');
   const fileListDiv = document.getElementById('fileList');
   const playingNowSpan = document.getElementById('playing-now');
-  const plyr = new Plyr('#historyPlayer', {
-    controls: [
-      'play', 'rewind', 'fast-forward', 'progress', 'current-time', 'duration', 'mute', 'volume', 'settings', 'fullscreen', 'download'
-    ],
-    settings: ['speed'],
-    speed: { selected: 1, options: [0.25, 0.5, 1, 1.5, 2, 4] }
-  });
 
-  plyr.on('ready', () => {
-    if (selectedRecording) {
-      const downloadPath = `/recordings/${selectedRecording.cam}/${selectedRecording.name}?download=true`;
-      const downloadBtns = document.querySelectorAll('a[data-plyr="download"], a.plyr__control[download]');
-      downloadBtns.forEach(btn => {
-        btn.setAttribute('href', downloadPath);
-        btn.setAttribute('download', selectedRecording.name);
-        btn.addEventListener('click', (e) => { e.stopPropagation(); });
-      });
-    }
-  });
 
   // Fungsi Baru untuk Auto-Login sebagai Guest
   // Fungsi Auto-Login sebagai Guest yang Sudah Diperbaiki
@@ -337,11 +319,9 @@ async function loginAsGuest() {
 
   function drawNVRTimeline() {
     const track = document.getElementById('nvrTimelineTrack');
-    const ticksContainer = document.getElementById('nvrTimelineTicks');
-    if (!track || !ticksContainer) return;
+    if (!track) return;
 
     track.innerHTML = '';
-    ticksContainer.innerHTML = '';
 
     // Render hourly ticks along the 2400px wide track
     for (let h = 0; h <= 24; h += 2) {
@@ -350,7 +330,7 @@ async function loginAsGuest() {
       // Put ticks relative to track width percentage (100% = 2400px)
       tick.style.left = `${(h / 24) * 100}%`;
       tick.innerHTML = `<span>${String(h).padStart(2, '0')}:00</span>`;
-      ticksContainer.appendChild(tick);
+      track.appendChild(tick);
     }
 
     if (!selectedNVRDate) {
@@ -386,7 +366,7 @@ async function loginAsGuest() {
     if (selectedRecording) {
       const file = playbackQueue.find(f => f.name === selectedRecording.name);
       if (file) {
-        const currentMs = file.timestampMs + (plyr.currentTime * 1000);
+        const currentMs = file.timestampMs + (historyPlayer.currentTime * 1000);
         updatePlayhead(currentMs);
       } else {
         alignTimelineToSeconds(0);
@@ -479,20 +459,20 @@ async function loginAsGuest() {
       playingNowSpan.innerText = `Playing: ${cam} - ${filename}`;
       playingNowSpan.style.color = '#9fd9ff';
       
-      const onReady = () => {
-        plyr.currentTime = offsetSec;
-        plyr.play().then(() => {
+      const onCanPlay = () => {
+        historyPlayer.currentTime = offsetSec;
+        historyPlayer.play().then(() => {
           setNVRStatus('playing');
         }).catch(() => {
           setNVRStatus('paused');
         });
-        plyr.off('ready', onReady);
+        historyPlayer.removeEventListener('canplay', onCanPlay);
       };
-      plyr.on('ready', onReady);
+      historyPlayer.addEventListener('canplay', onCanPlay);
     } else {
       setNVRStatus('buffering');
-      plyr.currentTime = offsetSec;
-      plyr.play().then(() => {
+      historyPlayer.currentTime = offsetSec;
+      historyPlayer.play().then(() => {
         setNVRStatus('playing');
       }).catch(() => {
         setNVRStatus('paused');
@@ -824,24 +804,8 @@ async function loginAsGuest() {
 
   function setRecordingsSource(cam, filename) {
     const videoPath = `/recordings/${cam}/${filename}`;
-    const downloadPath = `/recordings/${cam}/${filename}?download=true`;
     historyPlayer.src = videoPath;
-    plyr.source = {
-      type: 'video',
-      sources: [{ src: videoPath, type: 'video/mp4' }],
-      urls: { download: downloadPath }
-    };
-
-    setTimeout(() => {
-      const downloadBtns = document.querySelectorAll('a[data-plyr="download"], a.plyr__control[download]');
-      downloadBtns.forEach(btn => {
-        btn.setAttribute('href', downloadPath);
-        btn.setAttribute('download', filename);
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-        });
-      });
-    }, 250);
+    historyPlayer.load();
   }
 
   function selectRecording(cam, filename, autoPlay = false) {
@@ -855,17 +819,17 @@ async function loginAsGuest() {
     playingNowSpan.innerText = `Ready: ${cam} - ${filename}`;
     playingNowSpan.style.color = '#9fd9ff';
 
-    const onReady = () => {
-      plyr.currentTime = 0;
+    const onCanPlay = () => {
+      historyPlayer.currentTime = 0;
       if (autoPlay) {
-        plyr.play().then(() => setNVRStatus('playing')).catch(() => setNVRStatus('paused'));
+        historyPlayer.play().then(() => setNVRStatus('playing')).catch(() => setNVRStatus('paused'));
       } else {
-        plyr.pause();
+        historyPlayer.pause();
         setNVRStatus('paused');
       }
-      plyr.off('ready', onReady);
+      historyPlayer.removeEventListener('canplay', onCanPlay);
     };
-    plyr.on('ready', onReady);
+    historyPlayer.addEventListener('canplay', onCanPlay);
   }
 
   function confirmJumpTime() {
@@ -1710,18 +1674,18 @@ async function actionDeleteAccount(username) {
     }
   };
 
-  plyr.on('play', () => {
+  historyPlayer.addEventListener('play', () => {
     continuousPlayback = true;
     setNVRStatus('playing');
     if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name}`; playingNowSpan.style.color = '#3498db'; }
   });
-  plyr.on('pause', () => {
-    if (!plyr.ended) {
+  historyPlayer.addEventListener('pause', () => {
+    if (!historyPlayer.ended) {
       continuousPlayback = false;
       setNVRStatus('paused');
     }
   });
-  plyr.on('ended', () => {
+  historyPlayer.addEventListener('ended', () => {
     if (continuousPlayback) {
       setNVRStatus('buffering');
       playNextInQueue();
@@ -1729,19 +1693,19 @@ async function actionDeleteAccount(username) {
       setNVRStatus('paused');
     }
   });
-  plyr.on('timeupdate', () => {
-    if (!plyr.paused && selectedRecording) {
-      const currentMs = selectedRecording.timestampMs + (plyr.currentTime * 1000);
+  historyPlayer.addEventListener('timeupdate', () => {
+    if (!historyPlayer.paused && selectedRecording) {
+      const currentMs = selectedRecording.timestampMs + (historyPlayer.currentTime * 1000);
       updatePlayhead(currentMs);
     }
   });
-  plyr.on('waiting', () => {
+  historyPlayer.addEventListener('waiting', () => {
     setNVRStatus('buffering');
   });
-  plyr.on('seeking', () => {
+  historyPlayer.addEventListener('seeking', () => {
     setNVRStatus('buffering');
   });
-  plyr.on('playing', () => {
+  historyPlayer.addEventListener('playing', () => {
     setNVRStatus('playing');
   });
 

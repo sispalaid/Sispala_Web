@@ -1581,10 +1581,7 @@ label {
   border-top: 8px solid #ff3b30;
 }
 
-/* Hide default Plyr progress bar to use our daily timeline as the main seeking controller */
-.plyr__progress {
-  display: none !important;
-}
+
 
 /* Styling date input consistently with NVR layout select dropdowns */
 input[type="date"] {

@@ -246,7 +246,7 @@
   
   <div class="playback-container">
     <div class="playback-video-wrapper">
-      <video id="historyPlayer" class="plyr">
+      <video id="historyPlayer" controls autoplay playsinline style="width: 100%; border-radius: 8px;">
         <source src="" type="video/mp4">
       </video>
       
@@ -258,7 +258,6 @@
           <span id="nvr-current-time-val">00:00:00</span>
         </div>
         <div class="nvr-timeline-wrapper" id="nvrTimelineWrapper">
-          <div class="nvr-timeline-ticks" id="nvrTimelineTicks"></div>
           <div class="nvr-timeline-track" id="nvrTimelineTrack"></div>
           <div class="nvr-timeline-playhead" id="nvrTimelinePlayhead"></div>
         </div>
@@ -443,7 +442,6 @@
   <p class="copyright">&copy; 2026 SISPALA - Universitas Sebelas Maret. All Rights Reserved.</p>
 </footer>
 
-<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script src="script.js"></script>
 </div>
 </body>
