@@ -249,6 +249,19 @@
       <video id="historyPlayer" class="plyr">
         <source src="" type="video/mp4">
       </video>
+      
+      <!-- Unified NVR Timeline -->
+      <div class="nvr-timeline-container">
+        <div class="nvr-timeline-header">
+          <span id="nvr-timeline-date">Footage: -</span>
+          <span id="nvr-current-time-val">00:00:00</span>
+        </div>
+        <div class="nvr-timeline-wrapper" id="nvrTimelineWrapper">
+          <div class="nvr-timeline-ticks" id="nvrTimelineTicks"></div>
+          <div class="nvr-timeline-track" id="nvrTimelineTrack"></div>
+          <div class="nvr-timeline-playhead" id="nvrTimelinePlayhead"></div>
+        </div>
+      </div>
     </div>
     
     <div class="playback-list-wrapper">
@@ -259,6 +272,9 @@
         <option value="cam3">CAM 03 - Pak Yudho 2</option>
         <option value="cam4">CAM 04 - Pak RT</option>
       </select>
+
+      <label style="font-size: 12px; color: var(--ink-2); font-weight: 600;">Pilih Tanggal:</label>
+      <input type="date" id="nvrDateInput" onchange="onNVRDateChange()">
       
       <button class="btn-refresh" onclick="fetchRecordings()">Refresh Daftar File</button>
       

@@ -1467,3 +1467,135 @@ label {
 [data-theme="light"] .text-muted,
 [data-theme="light"] .storage-updated,
 [data-theme="light"] .time-hint { color: #33557b; }
+
+/* -------------------- NVR UNIFIED TIMELINE -------------------- */
+.nvr-timeline-container {
+  background: var(--panel-2);
+  border: 1px solid var(--stroke-1);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-top: 14px;
+  user-select: none;
+  box-shadow: var(--shadow-1);
+}
+
+.nvr-timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#nvr-timeline-date {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-1-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#nvr-current-time-val {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-2);
+  font-family: 'JetBrains Mono', Consolas, monospace;
+  background: rgba(31, 143, 209, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-1-soft);
+}
+
+.nvr-timeline-wrapper {
+  position: relative;
+  height: 48px;
+  background: var(--panel-1);
+  border: 1px solid var(--stroke-1);
+  border-radius: 6px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.nvr-timeline-ticks {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.nvr-tick {
+  position: absolute;
+  height: 100%;
+  border-left: 1px dashed rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  font-size: 9px;
+  color: var(--ink-2);
+  transform: translateX(-50%);
+  padding-bottom: 4px;
+}
+[data-theme="light"] .nvr-tick {
+  border-left-color: rgba(0, 0, 0, 0.08);
+}
+
+.nvr-timeline-track {
+  position: absolute;
+  top: 6px; bottom: 18px; left: 0; right: 0;
+  pointer-events: none;
+}
+
+.nvr-record-block {
+  position: absolute;
+  height: 100%;
+  background: linear-gradient(180deg, var(--accent-1), var(--accent-1-dark));
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(31, 143, 209, 0.3);
+}
+
+.nvr-timeline-playhead {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: #ff3b30;
+  box-shadow: 0 0 6px rgba(255, 59, 48, 0.8);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.nvr-timeline-playhead::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  background: #ff3b30;
+  border-radius: 50%;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* Hide default Plyr progress bar to use our daily timeline as the main seeking controller */
+.plyr__progress {
+  display: none !important;
+}
+
+/* Styling date input consistently with NVR layout select dropdowns */
+input[type="date"] {
+  background: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  padding: 10px 12px;
+  border-radius: 10px;
+  width: 100%;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="date"]:focus {
+  outline: none;
+  border-color: var(--accent-1);
+  box-shadow: 0 0 0 3px var(--accent-1-soft);
+}

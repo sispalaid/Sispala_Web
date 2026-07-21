@@ -12,6 +12,8 @@ const streams = [
   let playbackQueue = [];
   let playbackIndex = -1;
   let continuousPlayback = false;
+  let selectedNVRDate = ''; 
+  let nvrFilesForDay = []; 
   const jumpState = {
     calendarYear: null,
     calendarMonth: null,
@@ -223,27 +225,229 @@ async function loginAsGuest() {
       recordingsIndex = files
         .map((file) => ({ name: file, timestampMs: parseRecordingTimestamp(file) }))
         .filter((file) => file.timestampMs !== null);
-      playbackQueue = recordingsIndex.slice().sort((a, b) => a.timestampMs - b.timestampMs);
       
-      fileListDiv.innerHTML = '';
-      if (files.length === 0) {
+      recordingsIndex.sort((a, b) => a.timestampMs - b.timestampMs);
+
+      if (recordingsIndex.length === 0) {
         fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman ditemukan.</div>';
+        selectedNVRDate = '';
+        drawNVRTimeline();
         return;
       }
 
-      files.forEach(file => {
+      if (!selectedNVRDate) {
+        const latest = recordingsIndex[recordingsIndex.length - 1];
+        const latestDate = new Date(latest.timestampMs);
+        const yyyy = latestDate.getFullYear();
+        const mm = String(latestDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(latestDate.getDate()).padStart(2, '0');
+        selectedNVRDate = `${yyyy}-${mm}-${dd}`;
+      }
+
+      const dateInput = document.getElementById('nvrDateInput');
+      if (dateInput) {
+        dateInput.value = selectedNVRDate;
+      }
+
+      playbackQueue = recordingsIndex.filter(file => {
+        const date = new Date(file.timestampMs);
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const dd = String(date.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}` === selectedNVRDate;
+      });
+
+      drawNVRTimeline();
+
+      fileListDiv.innerHTML = '';
+      if (playbackQueue.length === 0) {
+        fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman untuk tanggal ini.</div>';
+        return;
+      }
+
+      playbackQueue.forEach(file => {
         const item = document.createElement('div');
         item.className = 'file-item';
-        item.dataset.filename = file;
-        item.innerText = `📁 ${file}`;
-        if (selectedRecording && selectedRecording.name === file) {
+        item.dataset.filename = file.name;
+        
+        const date = new Date(file.timestampMs);
+        const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+        item.innerText = `📁 ${timeStr} - ${file.name}`;
+        
+        if (selectedRecording && selectedRecording.name === file.name) {
           item.classList.add('selected');
         }
-        item.onclick = () => selectRecording(cam, file);
+        item.onclick = () => selectRecording(cam, file.name);
         fileListDiv.appendChild(item);
       });
+
+      if (!selectedRecording && playbackQueue.length > 0) {
+        selectRecording(cam, playbackQueue[0].name, false);
+      }
     } catch (err) {
-      fileListDiv.innerHTML = '<div style="padding:10px; color:red;">Gagal memuat daftar.</div>';
+      console.error(err);
+      fileListDiv.innerHTML = '<div style="padding:10px; color:red;">Gagal memuat rekaman.</div>';
+    }
+  }
+
+  // --- NVR Timeline Functions ---
+  window.onNVRDateChange = function() {
+    const dateInput = document.getElementById('nvrDateInput');
+    if (dateInput && dateInput.value) {
+      selectedNVRDate = dateInput.value;
+      fetchRecordings();
+    }
+  };
+
+  function drawNVRTimeline() {
+    const track = document.getElementById('nvrTimelineTrack');
+    const ticksContainer = document.getElementById('nvrTimelineTicks');
+    if (!track || !ticksContainer) return;
+
+    track.innerHTML = '';
+    ticksContainer.innerHTML = '';
+
+    // Render 13 timeline hour ticks (00:00, 02:00, ..., 24:00)
+    for (let h = 0; h <= 24; h += 2) {
+      const tick = document.createElement('div');
+      tick.className = 'nvr-tick';
+      tick.style.left = `${(h / 24) * 100}%`;
+      tick.innerHTML = `<span>${String(h).padStart(2, '0')}:00</span>`;
+      ticksContainer.appendChild(tick);
+    }
+
+    if (!selectedNVRDate) {
+      const dateLabel = document.getElementById('nvr-timeline-date');
+      if (dateLabel) dateLabel.textContent = 'Footage: -';
+      return;
+    }
+
+    const totalSecInDay = 86400;
+    const segmentDurationSec = 60; // 1-minute blocks
+
+    playbackQueue.forEach(file => {
+      const fileDate = new Date(file.timestampMs);
+      const secondsFromMidnight = fileDate.getHours() * 3600 + fileDate.getMinutes() * 60;
+      
+      const leftPct = (secondsFromMidnight / totalSecInDay) * 100;
+      const widthPct = (segmentDurationSec / totalSecInDay) * 100;
+
+      const block = document.createElement('div');
+      block.className = 'nvr-record-block';
+      block.style.left = `${leftPct}%`;
+      block.style.width = `${Math.max(widthPct, 0.15)}%`; // minimum visual width
+      
+      const timeLabel = `${String(fileDate.getHours()).padStart(2, '0')}:${String(fileDate.getMinutes()).padStart(2, '0')}`;
+      block.title = `${timeLabel} - ${file.name}`;
+      
+      track.appendChild(block);
+    });
+
+    const dateLabel = document.getElementById('nvr-timeline-date');
+    if (dateLabel) {
+      dateLabel.textContent = `Footage: ${selectedNVRDate}`;
+    }
+
+    // Sync playhead to current position if video is loaded
+    if (selectedRecording) {
+      const file = playbackQueue.find(f => f.name === selectedRecording.name);
+      if (file) {
+        const currentMs = file.timestampMs + (historyPlayer.currentTime * 1000);
+        updatePlayhead(currentMs);
+      }
+    }
+  }
+
+  function updatePlayhead(timestampMs) {
+    const playhead = document.getElementById('nvrTimelinePlayhead');
+    const timeVal = document.getElementById('nvr-current-time-val');
+    if (!playhead) return;
+
+    const date = new Date(timestampMs);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+
+    const secondsFromMidnight = hours * 3600 + minutes * 60 + seconds;
+    const totalSecInDay = 86400;
+    const pct = (secondsFromMidnight / totalSecInDay) * 100;
+
+    playhead.style.left = `${pct}%`;
+
+    if (timeVal) {
+      timeVal.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+  }
+
+  function handleTimelineSeek(e) {
+    const timelineWrapper = document.getElementById('nvrTimelineWrapper');
+    if (!timelineWrapper || !selectedNVRDate) return;
+
+    const rect = timelineWrapper.getBoundingClientRect();
+    let clientX = 0;
+    if (e.touches && e.touches.length > 0) {
+      clientX = e.touches[0].clientX;
+    } else {
+      clientX = e.clientX;
+    }
+    const offsetX = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const pct = offsetX / rect.width;
+
+    const totalSecInDay = 86400;
+    const targetSeconds = pct * totalSecInDay;
+
+    const [year, month, day] = selectedNVRDate.split('-').map(Number);
+    const targetMs = new Date(year, month - 1, day, 0, 0, 0).getTime() + (targetSeconds * 1000);
+
+    const segmentDurationMs = 60000;
+    let targetFile = playbackQueue.find(file => {
+      return targetMs >= file.timestampMs && targetMs <= (file.timestampMs + segmentDurationMs);
+    });
+
+    if (targetFile) {
+      const offsetSec = (targetMs - targetFile.timestampMs) / 1000;
+      playFileAtOffset(targetFile.name, offsetSec);
+    } else {
+      let nextFile = null;
+      let smallestDiff = Number.POSITIVE_INFINITY;
+      playbackQueue.forEach(file => {
+        const diff = file.timestampMs - targetMs;
+        if (diff > 0 && diff < smallestDiff) {
+          smallestDiff = diff;
+          nextFile = file;
+        }
+      });
+
+      if (nextFile) {
+        playFileAtOffset(nextFile.name, 0);
+      }
+    }
+  }
+
+  function playFileAtOffset(filename, offsetSec) {
+    const cam = document.getElementById('camSelect').value;
+    
+    if (!selectedRecording || selectedRecording.name !== filename) {
+      selectedRecording = { cam, name: filename, timestampMs: parseRecordingTimestamp(filename) };
+      playbackIndex = playbackQueue.findIndex((item) => item.name === filename);
+      
+      setRecordingsSource(cam, filename);
+      updateSelectedUI(filename);
+      
+      playingNowSpan.innerText = `Playing: ${cam} - ${filename}`;
+      playingNowSpan.style.color = '#9fd9ff';
+      
+      const onCanPlay = () => {
+        historyPlayer.currentTime = offsetSec;
+        historyPlayer.play().catch(() => {});
+        historyPlayer.removeEventListener('canplay', onCanPlay);
+      };
+      historyPlayer.addEventListener('canplay', onCanPlay);
+    } else {
+      historyPlayer.currentTime = offsetSec;
+      if (historyPlayer.paused) {
+        historyPlayer.play().catch(() => {});
+      }
     }
   }
 
@@ -612,7 +816,12 @@ async function loginAsGuest() {
     const targetMs = new Date(year, month - 1, day, hour, jumpState.minute, jumpState.second || 0).getTime();
     const closest = findClosestRecording(targetMs);
     if (closest) {
-      selectRecording(document.getElementById('camSelect').value, closest.name, false);
+      selectedNVRDate = jumpState.selectedDate;
+      const offsetSec = Math.max(0, (targetMs - closest.timestampMs) / 1000);
+      
+      fetchRecordings().then(() => {
+        playFileAtOffset(closest.name, offsetSec);
+      });
       closeJumpModal();
     } else {
       const hint = document.getElementById('jump-hint');
@@ -634,7 +843,7 @@ async function loginAsGuest() {
     if (playbackIndex < 0 || playbackIndex + 1 >= playbackQueue.length) return;
     const next = playbackQueue[playbackIndex + 1];
     playbackIndex += 1;
-    selectRecording(document.getElementById('camSelect').value, next.name, true);
+    playFileAtOffset(next.name, 0);
   }
 
   function toggleAlarm() {
@@ -1358,6 +1567,22 @@ async function actionDeleteAccount(username) {
     if (hourInput) hourInput.addEventListener('input', handleTypedTime);
     if (minuteInput) minuteInput.addEventListener('input', handleTypedTime);
     if (secondInput) secondInput.addEventListener('input', handleTypedTime);
+
+    const timelineWrapper = document.getElementById('nvrTimelineWrapper');
+    if (timelineWrapper) {
+      timelineWrapper.addEventListener('click', handleTimelineSeek);
+      
+      let isDragging = false;
+      timelineWrapper.addEventListener('mousedown', () => { isDragging = true; });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+      timelineWrapper.addEventListener('mousemove', (e) => {
+        if (isDragging) handleTimelineSeek(e);
+      });
+      
+      timelineWrapper.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) handleTimelineSeek(e.touches[0]);
+      }, { passive: true });
+    }
   };
 
   historyPlayer.addEventListener('play', () => {
@@ -1366,6 +1591,12 @@ async function actionDeleteAccount(username) {
   });
   historyPlayer.addEventListener('pause', () => { if (!historyPlayer.ended) continuousPlayback = false; });
   historyPlayer.addEventListener('ended', () => { if (continuousPlayback) playNextInQueue(); });
+  historyPlayer.addEventListener('timeupdate', () => {
+    if (!historyPlayer.paused && selectedRecording) {
+      const currentMs = selectedRecording.timestampMs + (historyPlayer.currentTime * 1000);
+      updatePlayhead(currentMs);
+    }
+  });
 
   async function handleLogin() {
     const user = document.getElementById('username').value;
