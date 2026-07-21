@@ -274,32 +274,7 @@ async function loginAsGuest() {
   let currentTrackX = 0;
   let draggedTimeSeconds = 0;
 
-  function setNVRStatus(status) {
-    const badge = document.getElementById('nvr-status-badge');
-    if (!badge) return;
-    
-    if (status === 'buffering') {
-      badge.textContent = 'BUFFERING...';
-      badge.style.background = 'rgba(243, 156, 18, 0.15)';
-      badge.style.color = '#f39c12';
-      badge.style.border = '1px solid rgba(243, 156, 18, 0.3)';
-      badge.style.display = 'inline-block';
-    } else if (status === 'playing') {
-      badge.textContent = 'PLAYING';
-      badge.style.background = 'rgba(46, 204, 113, 0.15)';
-      badge.style.color = '#2ecc71';
-      badge.style.border = '1px solid rgba(46, 204, 113, 0.3)';
-      badge.style.display = 'inline-block';
-    } else if (status === 'paused') {
-      badge.textContent = 'PAUSED';
-      badge.style.background = 'rgba(127, 140, 141, 0.15)';
-      badge.style.color = '#95a5a6';
-      badge.style.border = '1px solid rgba(127, 140, 141, 0.3)';
-      badge.style.display = 'inline-block';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
+
 
   function alignTimelineToSeconds(seconds) {
     const timelineWrapper = document.getElementById('nvrTimelineWrapper');
@@ -307,30 +282,48 @@ async function loginAsGuest() {
     if (!timelineWrapper || !track) return;
     
     const viewportWidth = timelineWrapper.clientWidth;
+    const trackWidth = viewportWidth * 24; // 1 hour occupies exactly the viewport width (24 hours = 24 * viewportWidth)
+    track.style.width = `${trackWidth}px`;
+
     const pct = seconds / 86400;
-    const targetX = pct * 2400;
+    const targetX = pct * trackWidth;
     currentTrackX = (viewportWidth / 2) - targetX;
     
     // Bounds clamping
-    currentTrackX = Math.max(viewportWidth / 2 - 2400, Math.min(viewportWidth / 2, currentTrackX));
+    currentTrackX = Math.max(viewportWidth / 2 - trackWidth, Math.min(viewportWidth / 2, currentTrackX));
     
     track.style.transform = `translateX(${currentTrackX}px)`;
   }
 
   function drawNVRTimeline() {
     const track = document.getElementById('nvrTimelineTrack');
-    if (!track) return;
+    const timelineWrapper = document.getElementById('nvrTimelineWrapper');
+    if (!track || !timelineWrapper) return;
+
+    const viewportWidth = timelineWrapper.clientWidth;
+    const trackWidth = viewportWidth * 24;
+    track.style.width = `${trackWidth}px`;
 
     track.innerHTML = '';
 
-    // Render hourly ticks along the 2400px wide track
-    for (let h = 0; h <= 24; h += 2) {
+    // Render hourly ticks along the track (1 hour = viewportWidth pixels)
+    for (let h = 0; h <= 24; h++) {
       const tick = document.createElement('div');
       tick.className = 'nvr-tick';
-      // Put ticks relative to track width percentage (100% = 2400px)
       tick.style.left = `${(h / 24) * 100}%`;
       tick.innerHTML = `<span>${String(h).padStart(2, '0')}:00</span>`;
       track.appendChild(tick);
+      
+      // Also add 15-minute sub-ticks for better visual precision
+      if (h < 24) {
+        for (let m = 15; m < 60; m += 15) {
+          const subTick = document.createElement('div');
+          subTick.className = 'nvr-tick sub-tick';
+          subTick.style.left = `${((h + m/60) / 24) * 100}%`;
+          subTick.innerHTML = `<span>:${String(m).padStart(2, '0')}</span>`;
+          track.appendChild(subTick);
+        }
+      }
     }
 
     if (!selectedNVRDate) {
@@ -343,8 +336,8 @@ async function loginAsGuest() {
       const fileDate = new Date(file.timestampMs);
       const secondsFromMidnight = fileDate.getHours() * 3600 + fileDate.getMinutes() * 60;
       
-      const leftPx = (secondsFromMidnight / 86400) * 2400;
-      const widthPx = (60 / 86400) * 2400; // 1 minute segment size (1.67px)
+      const leftPx = (secondsFromMidnight / 86400) * trackWidth;
+      const widthPx = (60 / 86400) * trackWidth; // 1 minute segment size
 
       const block = document.createElement('div');
       block.className = 'nvr-record-block';
@@ -377,7 +370,6 @@ async function loginAsGuest() {
   }
 
   function updatePlayhead(timestampMs) {
-    const timeVal = document.getElementById('nvr-current-time-val');
     const date = new Date(timestampMs);
     const hours = date.getHours();
     const minutes = date.getMinutes();
@@ -388,10 +380,6 @@ async function loginAsGuest() {
     // Slide track underneath center needle
     if (!isDraggingTimeline) {
       alignTimelineToSeconds(secondsFromMidnight);
-    }
-
-    if (timeVal) {
-      timeVal.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
   }
 
@@ -452,7 +440,6 @@ async function loginAsGuest() {
       selectedRecording = { cam, name: filename, timestampMs: parseRecordingTimestamp(filename) };
       playbackIndex = playbackQueue.findIndex((item) => item.name === filename);
       
-      setNVRStatus('buffering');
       setRecordingsSource(cam, filename);
       updateSelectedUI(filename);
       
@@ -461,22 +448,13 @@ async function loginAsGuest() {
       
       const onCanPlay = () => {
         historyPlayer.currentTime = offsetSec;
-        historyPlayer.play().then(() => {
-          setNVRStatus('playing');
-        }).catch(() => {
-          setNVRStatus('paused');
-        });
+        historyPlayer.play().catch(() => {});
         historyPlayer.removeEventListener('canplay', onCanPlay);
       };
       historyPlayer.addEventListener('canplay', onCanPlay);
     } else {
-      setNVRStatus('buffering');
       historyPlayer.currentTime = offsetSec;
-      historyPlayer.play().then(() => {
-        setNVRStatus('playing');
-      }).catch(() => {
-        setNVRStatus('paused');
-      });
+      historyPlayer.play().catch(() => {});
     }
   }
 
@@ -812,7 +790,6 @@ async function loginAsGuest() {
     selectedRecording = { cam, name: filename, timestampMs: parseRecordingTimestamp(filename) };
     playbackIndex = playbackQueue.findIndex((item) => item.name === filename);
     
-    setNVRStatus('buffering');
     setRecordingsSource(cam, filename);
     updateSelectedUI(filename);
 
@@ -822,10 +799,9 @@ async function loginAsGuest() {
     const onCanPlay = () => {
       historyPlayer.currentTime = 0;
       if (autoPlay) {
-        historyPlayer.play().then(() => setNVRStatus('playing')).catch(() => setNVRStatus('paused'));
+        historyPlayer.play().catch(() => {});
       } else {
         historyPlayer.pause();
-        setNVRStatus('paused');
       }
       historyPlayer.removeEventListener('canplay', onCanPlay);
     };
@@ -1610,21 +1586,14 @@ async function actionDeleteAccount(username) {
         let newX = dragStartTrackX + dx;
         
         const viewportWidth = timelineWrapper.clientWidth;
-        newX = Math.max(viewportWidth / 2 - 2400, Math.min(viewportWidth / 2, newX));
+        const trackWidth = viewportWidth * 24;
+        newX = Math.max(viewportWidth / 2 - trackWidth, Math.min(viewportWidth / 2, newX));
         
         currentTrackX = newX;
         track.style.transform = `translateX(${newX}px)`;
 
-        const pct = (viewportWidth / 2 - newX) / 2400;
+        const pct = (viewportWidth / 2 - newX) / trackWidth;
         draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
-        
-        const hh = Math.floor(draggedTimeSeconds / 3600);
-        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
-        const ss = Math.floor(draggedTimeSeconds % 60);
-        const timeVal = document.getElementById('nvr-current-time-val');
-        if (timeVal) {
-          timeVal.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-        }
       });
 
       window.addEventListener('mouseup', () => {
@@ -1648,21 +1617,14 @@ async function actionDeleteAccount(username) {
         let newX = dragStartTrackX + dx;
         
         const viewportWidth = timelineWrapper.clientWidth;
-        newX = Math.max(viewportWidth / 2 - 2400, Math.min(viewportWidth / 2, newX));
+        const trackWidth = viewportWidth * 24;
+        newX = Math.max(viewportWidth / 2 - trackWidth, Math.min(viewportWidth / 2, newX));
         
         currentTrackX = newX;
         track.style.transform = `translateX(${newX}px)`;
 
-        const pct = (viewportWidth / 2 - newX) / 2400;
+        const pct = (viewportWidth / 2 - newX) / trackWidth;
         draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
-
-        const hh = Math.floor(draggedTimeSeconds / 3600);
-        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
-        const ss = Math.floor(draggedTimeSeconds % 60);
-        const timeVal = document.getElementById('nvr-current-time-val');
-        if (timeVal) {
-          timeVal.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-        }
       }, { passive: true });
 
       timelineWrapper.addEventListener('touchend', () => {
@@ -1676,37 +1638,26 @@ async function actionDeleteAccount(username) {
 
   historyPlayer.addEventListener('play', () => {
     continuousPlayback = true;
-    setNVRStatus('playing');
     if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name}`; playingNowSpan.style.color = '#3498db'; }
   });
   historyPlayer.addEventListener('pause', () => {
     if (!historyPlayer.ended) {
       continuousPlayback = false;
-      setNVRStatus('paused');
     }
   });
   historyPlayer.addEventListener('ended', () => {
     if (continuousPlayback) {
-      setNVRStatus('buffering');
       playNextInQueue();
-    } else {
-      setNVRStatus('paused');
     }
   });
   historyPlayer.addEventListener('timeupdate', () => {
-    if (!historyPlayer.paused && selectedRecording) {
-      const currentMs = selectedRecording.timestampMs + (historyPlayer.currentTime * 1000);
-      updatePlayhead(currentMs);
+    if (selectedRecording) {
+      const ts = selectedRecording.timestampMs || parseRecordingTimestamp(selectedRecording.name);
+      if (ts) {
+        const currentMs = ts + (historyPlayer.currentTime * 1000);
+        updatePlayhead(currentMs);
+      }
     }
-  });
-  historyPlayer.addEventListener('waiting', () => {
-    setNVRStatus('buffering');
-  });
-  historyPlayer.addEventListener('seeking', () => {
-    setNVRStatus('buffering');
-  });
-  historyPlayer.addEventListener('playing', () => {
-    setNVRStatus('playing');
   });
 
   async function handleLogin() {
