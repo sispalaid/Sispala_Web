@@ -306,25 +306,22 @@ async function loginAsGuest() {
 
     track.innerHTML = '';
 
-    // Render hourly ticks along the track (1 hour = viewportWidth pixels)
-    for (let h = 0; h <= 24; h++) {
-      const tick = document.createElement('div');
-      tick.className = 'nvr-tick';
-      tick.style.left = `${(h / 24) * 100}%`;
-      tick.innerHTML = `<span>${String(h).padStart(2, '0')}:00</span>`;
-      track.appendChild(tick);
-      
-      // Also add 15-minute sub-ticks for better visual precision
-      if (h < 24) {
-        for (let m = 15; m < 60; m += 15) {
-          const subTick = document.createElement('div');
-          subTick.className = 'nvr-tick sub-tick';
-          subTick.style.left = `${((h + m/60) / 24) * 100}%`;
-          subTick.innerHTML = `<span>:${String(m).padStart(2, '0')}</span>`;
-          track.appendChild(subTick);
-        }
+    // Render ticks every 15 minutes (1 hour = viewportWidth pixels)
+    for (let h = 0; h < 24; h++) {
+      for (let m = 0; m < 60; m += 15) {
+        const tick = document.createElement('div');
+        tick.className = 'nvr-tick';
+        tick.style.left = `${((h + m/60) / 24) * 100}%`;
+        tick.innerHTML = `<span>${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}</span>`;
+        track.appendChild(tick);
       }
     }
+    // Final 24:00 tick
+    const tick24 = document.createElement('div');
+    tick24.className = 'nvr-tick';
+    tick24.style.left = `100%`;
+    tick24.innerHTML = `<span>24:00</span>`;
+    track.appendChild(tick24);
 
     if (!selectedNVRDate) {
       const dateLabel = document.getElementById('nvr-timeline-date');
