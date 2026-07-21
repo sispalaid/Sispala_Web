@@ -244,11 +244,6 @@ async function loginAsGuest() {
         selectedNVRDate = `${yyyy}-${mm}-${dd}`;
       }
 
-      const dateInput = document.getElementById('nvrDateInput');
-      if (dateInput) {
-        dateInput.value = selectedNVRDate;
-      }
-
       playbackQueue = recordingsIndex.filter(file => {
         const date = new Date(file.timestampMs);
         const yyyy = date.getFullYear();
@@ -290,14 +285,30 @@ async function loginAsGuest() {
     }
   }
 
-  // --- NVR Timeline Functions ---
-  window.onNVRDateChange = function() {
-    const dateInput = document.getElementById('nvrDateInput');
-    if (dateInput && dateInput.value) {
-      selectedNVRDate = dateInput.value;
-      fetchRecordings();
-    }
-  };
+  // --- NVR Timeline Functions & State ---
+  let isDraggingTimeline = false;
+  let dragStartX = 0;
+  let dragStartTrackX = 0;
+  let currentTrackX = 0;
+  let draggedTimeSeconds = 0;
+
+
+
+  function alignTimelineToSeconds(seconds) {
+    const timelineWrapper = document.getElementById('nvrTimelineWrapper');
+    const track = document.getElementById('nvrTimelineTrack');
+    if (!timelineWrapper || !track) return;
+    
+    const viewportWidth = timelineWrapper.clientWidth;
+    const pct = seconds / 86400;
+    const targetX = pct * 2400;
+    currentTrackX = (viewportWidth / 2) - targetX;
+    
+    // Bounds clamping
+    currentTrackX = Math.max(viewportWidth / 2 - 2400, Math.min(viewportWidth / 2, currentTrackX));
+    
+    track.style.transform = `translateX(${currentTrackX}px)`;
+  }
 
   function drawNVRTimeline() {
     const track = document.getElementById('nvrTimelineTrack');
@@ -307,10 +318,11 @@ async function loginAsGuest() {
     track.innerHTML = '';
     ticksContainer.innerHTML = '';
 
-    // Render 13 timeline hour ticks (00:00, 02:00, ..., 24:00)
+    // Render hourly ticks along the 2400px wide track
     for (let h = 0; h <= 24; h += 2) {
       const tick = document.createElement('div');
       tick.className = 'nvr-tick';
+      // Put ticks relative to track width percentage (100% = 2400px)
       tick.style.left = `${(h / 24) * 100}%`;
       tick.innerHTML = `<span>${String(h).padStart(2, '0')}:00</span>`;
       ticksContainer.appendChild(tick);
@@ -322,20 +334,17 @@ async function loginAsGuest() {
       return;
     }
 
-    const totalSecInDay = 86400;
-    const segmentDurationSec = 60; // 1-minute blocks
-
     playbackQueue.forEach(file => {
       const fileDate = new Date(file.timestampMs);
       const secondsFromMidnight = fileDate.getHours() * 3600 + fileDate.getMinutes() * 60;
       
-      const leftPct = (secondsFromMidnight / totalSecInDay) * 100;
-      const widthPct = (segmentDurationSec / totalSecInDay) * 100;
+      const leftPx = (secondsFromMidnight / 86400) * 2400;
+      const widthPx = (60 / 86400) * 2400; // 1 minute segment size (1.67px)
 
       const block = document.createElement('div');
       block.className = 'nvr-record-block';
-      block.style.left = `${leftPct}%`;
-      block.style.width = `${Math.max(widthPct, 0.15)}%`; // minimum visual width
+      block.style.left = `${leftPx}px`;
+      block.style.width = `${Math.max(widthPx, 2)}px`; // Keep it visible even if tiny
       
       const timeLabel = `${String(fileDate.getHours()).padStart(2, '0')}:${String(fileDate.getMinutes()).padStart(2, '0')}`;
       block.title = `${timeLabel} - ${file.name}`;
@@ -348,31 +357,33 @@ async function loginAsGuest() {
       dateLabel.textContent = `Footage: ${selectedNVRDate}`;
     }
 
-    // Sync playhead to current position if video is loaded
+    // Sync track scroll position to current video playback time
     if (selectedRecording) {
       const file = playbackQueue.find(f => f.name === selectedRecording.name);
       if (file) {
         const currentMs = file.timestampMs + (historyPlayer.currentTime * 1000);
         updatePlayhead(currentMs);
+      } else {
+        alignTimelineToSeconds(0);
       }
+    } else {
+      alignTimelineToSeconds(0);
     }
   }
 
   function updatePlayhead(timestampMs) {
-    const playhead = document.getElementById('nvrTimelinePlayhead');
     const timeVal = document.getElementById('nvr-current-time-val');
-    if (!playhead) return;
-
     const date = new Date(timestampMs);
     const hours = date.getHours();
     const minutes = date.getMinutes();
     const seconds = date.getSeconds();
 
     const secondsFromMidnight = hours * 3600 + minutes * 60 + seconds;
-    const totalSecInDay = 86400;
-    const pct = (secondsFromMidnight / totalSecInDay) * 100;
-
-    playhead.style.left = `${pct}%`;
+    
+    // Slide track underneath center needle
+    if (!isDraggingTimeline) {
+      alignTimelineToSeconds(secondsFromMidnight);
+    }
 
     if (timeVal) {
       timeVal.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
@@ -396,8 +407,13 @@ async function loginAsGuest() {
     const totalSecInDay = 86400;
     const targetSeconds = pct * totalSecInDay;
 
+    seekToTimeOfDay(targetSeconds);
+  }
+
+  function seekToTimeOfDay(secondsFromMidnight) {
+    if (!selectedNVRDate) return;
     const [year, month, day] = selectedNVRDate.split('-').map(Number);
-    const targetMs = new Date(year, month - 1, day, 0, 0, 0).getTime() + (targetSeconds * 1000);
+    const targetMs = new Date(year, month - 1, day, 0, 0, 0).getTime() + (secondsFromMidnight * 1000);
 
     const segmentDurationMs = 60000;
     let targetFile = playbackQueue.find(file => {
@@ -1569,19 +1585,83 @@ async function actionDeleteAccount(username) {
     if (secondInput) secondInput.addEventListener('input', handleTypedTime);
 
     const timelineWrapper = document.getElementById('nvrTimelineWrapper');
-    if (timelineWrapper) {
-      timelineWrapper.addEventListener('click', handleTimelineSeek);
-      
-      let isDragging = false;
-      timelineWrapper.addEventListener('mousedown', () => { isDragging = true; });
-      window.addEventListener('mouseup', () => { isDragging = false; });
-      timelineWrapper.addEventListener('mousemove', (e) => {
-        if (isDragging) handleTimelineSeek(e);
+    const track = document.getElementById('nvrTimelineTrack');
+    if (timelineWrapper && track) {
+      timelineWrapper.addEventListener('mousedown', (e) => {
+        isDraggingTimeline = true;
+        track.style.transition = 'none';
+        dragStartX = e.clientX;
+        dragStartTrackX = currentTrackX;
+        e.preventDefault();
       });
-      
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDraggingTimeline) return;
+        const dx = e.clientX - dragStartX;
+        let newX = dragStartTrackX + dx;
+        
+        const viewportWidth = timelineWrapper.clientWidth;
+        newX = Math.max(viewportWidth / 2 - 2400, Math.min(viewportWidth / 2, newX));
+        
+        currentTrackX = newX;
+        track.style.transform = `translateX(${newX}px)`;
+
+        const pct = (viewportWidth / 2 - newX) / 2400;
+        draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
+        
+        const hh = Math.floor(draggedTimeSeconds / 3600);
+        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
+        const ss = Math.floor(draggedTimeSeconds % 60);
+        const timeVal = document.getElementById('nvr-current-time-val');
+        if (timeVal) {
+          timeVal.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (!isDraggingTimeline) return;
+        isDraggingTimeline = false;
+        track.style.transition = 'transform 0.1s ease-out';
+        seekToTimeOfDay(draggedTimeSeconds);
+      });
+
+      timelineWrapper.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 0) return;
+        isDraggingTimeline = true;
+        track.style.transition = 'none';
+        dragStartX = e.touches[0].clientX;
+        dragStartTrackX = currentTrackX;
+      });
+
       timelineWrapper.addEventListener('touchmove', (e) => {
-        if (e.touches.length > 0) handleTimelineSeek(e.touches[0]);
+        if (!isDraggingTimeline || e.touches.length === 0) return;
+        const dx = e.touches[0].clientX - dragStartX;
+        let newX = dragStartTrackX + dx;
+        
+        const viewportWidth = timelineWrapper.clientWidth;
+        newX = Math.max(viewportWidth / 2 - 2400, Math.min(viewportWidth / 2, newX));
+        
+        currentTrackX = newX;
+        track.style.transform = `translateX(${newX}px)`;
+
+        const pct = (viewportWidth / 2 - newX) / 2400;
+        draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
+
+        const hh = Math.floor(draggedTimeSeconds / 3600);
+        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
+        const ss = Math.floor(draggedTimeSeconds % 60);
+        const timeVal = document.getElementById('nvr-current-time-val');
+        if (timeVal) {
+          timeVal.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        }
       }, { passive: true });
+
+      timelineWrapper.addEventListener('touchend', () => {
+        if (!isDraggingTimeline) return;
+        isDraggingTimeline = false;
+        track.style.transition = 'transform 0.1s ease-out';
+        seekToTimeOfDay(draggedTimeSeconds);
+      });
     }
   };
 

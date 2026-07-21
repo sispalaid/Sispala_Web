@@ -1507,73 +1507,78 @@ label {
 
 .nvr-timeline-wrapper {
   position: relative;
-  height: 48px;
+  height: 60px;
   background: var(--panel-1);
   border: 1px solid var(--stroke-1);
-  border-radius: 6px;
-  cursor: pointer;
+  border-radius: 8px;
+  cursor: grab;
   overflow: hidden;
+}
+.nvr-timeline-wrapper:active {
+  cursor: grabbing;
 }
 
 .nvr-timeline-ticks {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  display: flex;
-  justify-content: space-between;
   pointer-events: none;
 }
 
 .nvr-tick {
   position: absolute;
   height: 100%;
-  border-left: 1px dashed rgba(255, 255, 255, 0.07);
+  border-left: 1px dashed rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--ink-2);
   transform: translateX(-50%);
   padding-bottom: 4px;
 }
 [data-theme="light"] .nvr-tick {
-  border-left-color: rgba(0, 0, 0, 0.08);
+  border-left-color: rgba(0, 0, 0, 0.12);
 }
 
 .nvr-timeline-track {
   position: absolute;
-  top: 6px; bottom: 18px; left: 0; right: 0;
+  top: 0; bottom: 0; left: 0;
+  width: 2400px;
   pointer-events: none;
 }
 
 .nvr-record-block {
   position: absolute;
-  height: 100%;
+  top: 8px;
+  bottom: 22px;
   background: linear-gradient(180deg, var(--accent-1), var(--accent-1-dark));
   border-radius: 2px;
   box-shadow: 0 1px 3px rgba(31, 143, 209, 0.3);
 }
 
+/* Needle permanently centered */
 .nvr-timeline-playhead {
   position: absolute;
-  top: 0; bottom: 0;
+  left: 50%;
+  top: 0;
+  bottom: 0;
   width: 2px;
   background: #ff3b30;
   box-shadow: 0 0 6px rgba(255, 59, 48, 0.8);
-  z-index: 10;
+  z-index: 20;
   pointer-events: none;
+  transform: translateX(-50%);
 }
 
 .nvr-timeline-playhead::after {
   content: '';
   position: absolute;
-  top: -2px;
-  left: -4px;
-  width: 10px;
-  height: 10px;
-  background: #ff3b30;
-  border-radius: 50%;
-  border: 1px solid #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #ff3b30;
 }
 
 /* Hide default Plyr progress bar to use our daily timeline as the main seeking controller */
