@@ -273,6 +273,8 @@ async function loginAsGuest() {
   let dragStartTrackX = 0;
   let currentTrackX = 0;
   let draggedTimeSeconds = 0;
+  let isPendingSeek = false;
+  let pendingSeekTargetMs = 0;
 
 
 
@@ -368,6 +370,7 @@ async function loginAsGuest() {
 
   function updatePlayhead(timestampMs) {
     if (isDraggingTimeline) return;
+    if (isPendingSeek && timestampMs !== pendingSeekTargetMs) return;
 
     const badge = document.getElementById('nvrPlayheadBadge');
     const date = new Date(timestampMs);
@@ -447,20 +450,35 @@ async function loginAsGuest() {
       
       playingNowSpan.innerText = `Playing: ${cam} - ${filename}`;
       playingNowSpan.style.color = '#9fd9ff';
+
+      isPendingSeek = true;
+      pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
+      updatePlayhead(pendingSeekTargetMs);
       
       const onLoadedMetadata = () => {
         if (offsetSec > 0 && isFinite(offsetSec)) {
           historyPlayer.currentTime = offsetSec;
         }
-        historyPlayer.play().catch(() => {});
+        historyPlayer.play().then(() => {
+          isPendingSeek = false;
+        }).catch(() => {
+          isPendingSeek = false;
+        });
         historyPlayer.removeEventListener('loadedmetadata', onLoadedMetadata);
       };
       historyPlayer.addEventListener('loadedmetadata', onLoadedMetadata);
     } else {
       if (offsetSec >= 0 && isFinite(offsetSec)) {
+        isPendingSeek = true;
+        pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
+        updatePlayhead(pendingSeekTargetMs);
         historyPlayer.currentTime = offsetSec;
+        historyPlayer.play().then(() => {
+          isPendingSeek = false;
+        }).catch(() => {
+          isPendingSeek = false;
+        });
       }
-      historyPlayer.play().catch(() => {});
     }
   }
 
