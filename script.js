@@ -367,6 +367,8 @@ async function loginAsGuest() {
   }
 
   function updatePlayhead(timestampMs) {
+    if (isDraggingTimeline) return;
+
     const badge = document.getElementById('nvrPlayheadBadge');
     const date = new Date(timestampMs);
     const hours = date.getHours();
@@ -376,9 +378,7 @@ async function loginAsGuest() {
     const secondsFromMidnight = hours * 3600 + minutes * 60 + seconds;
     
     // Slide track underneath center needle
-    if (!isDraggingTimeline) {
-      alignTimelineToSeconds(secondsFromMidnight);
-    }
+    alignTimelineToSeconds(secondsFromMidnight);
 
     if (badge) {
       badge.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
