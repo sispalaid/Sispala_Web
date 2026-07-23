@@ -367,6 +367,7 @@ async function loginAsGuest() {
   }
 
   function updatePlayhead(timestampMs) {
+    const badge = document.getElementById('nvrPlayheadBadge');
     const date = new Date(timestampMs);
     const hours = date.getHours();
     const minutes = date.getMinutes();
@@ -377,6 +378,10 @@ async function loginAsGuest() {
     // Slide track underneath center needle
     if (!isDraggingTimeline) {
       alignTimelineToSeconds(secondsFromMidnight);
+    }
+
+    if (badge) {
+      badge.textContent = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
   }
 
@@ -1591,6 +1596,14 @@ async function actionDeleteAccount(username) {
 
         const pct = (viewportWidth / 2 - newX) / trackWidth;
         draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
+
+        const hh = Math.floor(draggedTimeSeconds / 3600);
+        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
+        const ss = Math.floor(draggedTimeSeconds % 60);
+        const badge = document.getElementById('nvrPlayheadBadge');
+        if (badge) {
+          badge.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        }
       });
 
       window.addEventListener('mouseup', () => {
@@ -1622,6 +1635,14 @@ async function actionDeleteAccount(username) {
 
         const pct = (viewportWidth / 2 - newX) / trackWidth;
         draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
+
+        const hh = Math.floor(draggedTimeSeconds / 3600);
+        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
+        const ss = Math.floor(draggedTimeSeconds % 60);
+        const badge = document.getElementById('nvrPlayheadBadge');
+        if (badge) {
+          badge.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        }
       }, { passive: true });
 
       timelineWrapper.addEventListener('touchend', () => {
@@ -1630,6 +1651,36 @@ async function actionDeleteAccount(username) {
         track.style.transition = 'transform 0.1s ease-out';
         seekToTimeOfDay(draggedTimeSeconds);
       });
+
+      // Hover Tooltip logic for mouse pointer on timeline
+      const hoverTooltip = document.getElementById('nvrHoverTooltip');
+      if (hoverTooltip) {
+        timelineWrapper.addEventListener('mousemove', (e) => {
+          if (isDraggingTimeline) {
+            hoverTooltip.style.display = 'none';
+            return;
+          }
+          const rect = timelineWrapper.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const viewportWidth = timelineWrapper.clientWidth;
+          const trackWidth = viewportWidth * 24;
+
+          const pct = (viewportWidth / 2 - currentTrackX + (mouseX - viewportWidth / 2)) / trackWidth;
+          const hoverSeconds = Math.max(0, Math.min(86399, pct * 86400));
+
+          const hh = Math.floor(hoverSeconds / 3600);
+          const mm = Math.floor((hoverSeconds % 3600) / 60);
+          const ss = Math.floor(hoverSeconds % 60);
+
+          hoverTooltip.style.left = `${mouseX}px`;
+          hoverTooltip.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+          hoverTooltip.style.display = 'block';
+        });
+
+        timelineWrapper.addEventListener('mouseleave', () => {
+          hoverTooltip.style.display = 'none';
+        });
+      }
     }
   };
 

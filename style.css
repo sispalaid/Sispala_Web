@@ -1589,6 +1589,43 @@ label {
   border-top: 8px solid #ff3b30;
 }
 
+.nvr-playhead-badge {
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #ff3b30;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.5);
+  pointer-events: none;
+  z-index: 25;
+}
+
+.nvr-hover-tooltip {
+  position: absolute;
+  top: -24px;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.95);
+  color: var(--accent-1-light);
+  border: 1px solid var(--accent-1);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: monospace;
+  padding: 2px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  display: none;
+  z-index: 24;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
 
 
 /* Styling date input consistently with NVR layout select dropdowns */
