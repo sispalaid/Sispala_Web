@@ -1512,10 +1512,19 @@ label {
   border: 1px solid var(--stroke-1);
   border-radius: 8px;
   cursor: grab;
-  overflow: hidden;
+  overflow: visible;
+  margin-top: 26px;
 }
 .nvr-timeline-wrapper:active {
   cursor: grabbing;
+}
+
+.nvr-timeline-track-clip {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  pointer-events: none;
 }
 
 .nvr-timeline-ticks {
@@ -1591,7 +1600,7 @@ label {
 
 .nvr-playhead-badge {
   position: absolute;
-  top: 4px;
+  top: -26px;
   left: 50%;
   transform: translateX(-50%);
   background: #ff3b30;
@@ -1602,14 +1611,14 @@ label {
   padding: 2px 7px;
   border-radius: 4px;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.5);
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.6);
   pointer-events: none;
   z-index: 25;
 }
 
 .nvr-hover-tooltip {
   position: absolute;
-  top: 4px;
+  top: -26px;
   transform: translateX(-50%);
   background: rgba(15, 23, 42, 0.95);
   color: var(--accent-1-light);

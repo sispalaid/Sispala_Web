@@ -1574,8 +1574,11 @@ async function actionDeleteAccount(username) {
     const timelineWrapper = document.getElementById('nvrTimelineWrapper');
     const track = document.getElementById('nvrTimelineTrack');
     if (timelineWrapper && track) {
+      let hasDraggedFar = false;
+
       timelineWrapper.addEventListener('mousedown', (e) => {
         isDraggingTimeline = true;
+        hasDraggedFar = false;
         track.style.transition = 'none';
         dragStartX = e.clientX;
         dragStartTrackX = currentTrackX;
@@ -1585,6 +1588,7 @@ async function actionDeleteAccount(username) {
       window.addEventListener('mousemove', (e) => {
         if (!isDraggingTimeline) return;
         const dx = e.clientX - dragStartX;
+        if (Math.abs(dx) > 3) hasDraggedFar = true;
         let newX = dragStartTrackX + dx;
         
         const viewportWidth = timelineWrapper.clientWidth;
@@ -1610,12 +1614,27 @@ async function actionDeleteAccount(username) {
         if (!isDraggingTimeline) return;
         isDraggingTimeline = false;
         track.style.transition = 'transform 0.1s ease-out';
-        seekToTimeOfDay(draggedTimeSeconds);
+        if (hasDraggedFar) {
+          seekToTimeOfDay(draggedTimeSeconds);
+        }
+      });
+
+      timelineWrapper.addEventListener('click', (e) => {
+        if (hasDraggedFar || !selectedNVRDate) return;
+        const rect = timelineWrapper.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const viewportWidth = timelineWrapper.clientWidth;
+        const trackWidth = viewportWidth * 24;
+
+        const pct = (viewportWidth / 2 - currentTrackX + (mouseX - viewportWidth / 2)) / trackWidth;
+        const targetSeconds = Math.max(0, Math.min(86399, pct * 86400));
+        seekToTimeOfDay(targetSeconds);
       });
 
       timelineWrapper.addEventListener('touchstart', (e) => {
         if (e.touches.length === 0) return;
         isDraggingTimeline = true;
+        hasDraggedFar = false;
         track.style.transition = 'none';
         dragStartX = e.touches[0].clientX;
         dragStartTrackX = currentTrackX;
@@ -1624,6 +1643,7 @@ async function actionDeleteAccount(username) {
       timelineWrapper.addEventListener('touchmove', (e) => {
         if (!isDraggingTimeline || e.touches.length === 0) return;
         const dx = e.touches[0].clientX - dragStartX;
+        if (Math.abs(dx) > 3) hasDraggedFar = true;
         let newX = dragStartTrackX + dx;
         
         const viewportWidth = timelineWrapper.clientWidth;
@@ -1649,7 +1669,9 @@ async function actionDeleteAccount(username) {
         if (!isDraggingTimeline) return;
         isDraggingTimeline = false;
         track.style.transition = 'transform 0.1s ease-out';
-        seekToTimeOfDay(draggedTimeSeconds);
+        if (hasDraggedFar) {
+          seekToTimeOfDay(draggedTimeSeconds);
+        }
       });
 
       // Hover Tooltip logic for mouse pointer on timeline
