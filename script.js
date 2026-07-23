@@ -448,14 +448,18 @@ async function loginAsGuest() {
       playingNowSpan.innerText = `Playing: ${cam} - ${filename}`;
       playingNowSpan.style.color = '#9fd9ff';
       
-      const onCanPlay = () => {
-        historyPlayer.currentTime = offsetSec;
+      const onLoadedMetadata = () => {
+        if (offsetSec > 0 && isFinite(offsetSec)) {
+          historyPlayer.currentTime = offsetSec;
+        }
         historyPlayer.play().catch(() => {});
-        historyPlayer.removeEventListener('canplay', onCanPlay);
+        historyPlayer.removeEventListener('loadedmetadata', onLoadedMetadata);
       };
-      historyPlayer.addEventListener('canplay', onCanPlay);
+      historyPlayer.addEventListener('loadedmetadata', onLoadedMetadata);
     } else {
-      historyPlayer.currentTime = offsetSec;
+      if (offsetSec >= 0 && isFinite(offsetSec)) {
+        historyPlayer.currentTime = offsetSec;
+      }
       historyPlayer.play().catch(() => {});
     }
   }
@@ -798,16 +802,16 @@ async function loginAsGuest() {
     playingNowSpan.innerText = `Ready: ${cam} - ${filename}`;
     playingNowSpan.style.color = '#9fd9ff';
 
-    const onCanPlay = () => {
+    const onLoadedMetadata = () => {
       historyPlayer.currentTime = 0;
       if (autoPlay) {
         historyPlayer.play().catch(() => {});
       } else {
         historyPlayer.pause();
       }
-      historyPlayer.removeEventListener('canplay', onCanPlay);
+      historyPlayer.removeEventListener('loadedmetadata', onLoadedMetadata);
     };
-    historyPlayer.addEventListener('canplay', onCanPlay);
+    historyPlayer.addEventListener('loadedmetadata', onLoadedMetadata);
   }
 
   function confirmJumpTime() {
