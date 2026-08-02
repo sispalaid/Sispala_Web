@@ -90,13 +90,9 @@ The video stream goes through an advanced pipeline to maximize hardware accelera
 
 *   **Dual-Direction Color Space Offloading:** Shifting the color conversions from FFmpeg (which used software `libswscale` on the CPU) to OpenCV (which compiles with AVX/SIMD vector instruction support on Python) reduced the CPU usage of each FFmpeg process from **70%–90% down to less than 15%**.
 *   **50% Pipe Bandwidth Reduction:** By piping `nv12` from the decoder to Python, and `yuv420p` from Python to the encoder, we reduced the system pipe copy overhead from $110.6\text{ MB/s}$ to $55.3\text{ MB/s}$ total across 4 streams.
-*   **Dynamic Disk Selection:** Instead of prioritizing a fixed directory, `storage_select.sh` runs a `df` check on `/home/sispala/archive`, `/mnt/ext/Recordings`, and external USB mounts, automatically routing recordings to the disk partition with the **highest available free space**.
-*   **Delayed HLS Loading:** Video streams are wrapped in `initializeStreams()` in the browser, preventing the web app from making background network requests and generating 404 logs while the login overlay is active.
-*   **Dynamic Log Capping & Date Filters:** 
-    *   **UI Viewing:** Capped at 5,000 lines to prevent browser rendering freezes.
-    *   **Downloads/Export:** Supports up to 500,000 lines (defaulting to 100,000 lines) of clean, emoji-free text logs.
-    *   **Universal Date Ranges:** Allows the "Since" and "Until" date picker to filter stack logs and file-based logs on the fly.
-*   **Premium Auto-Cleanup Cards UI:** Converts raw text strings from `cleanup.log` into beautifully formatted card widgets with color-coded warning/info/success SVG badges.
+*   **Globally-Aware Storage Rotation:** When disk space on all candidate drives runs low, the system evaluates all directories to locate the globally oldest `.mp4` file and rotates the active writer path to that drive so it can safely purge its old footage first, maintaining a continuous timeline history without loop bounces.
+*   **High/Low Watermark Auto-Cleanup:** Prevents constant disk thrashing by using a Lower Limit (`MIN_FREE_GB`, default 5 GB) to trigger cleanup, and an Upper Limit (`TARGET_FREE_GB`, default 10 GB) to stop it. Deletions occur in one batch to free up substantial space rather than executing disk edits every minute.
+*   **Custom NVR Playback Timeline:** Built a native styled HTML5 video player (replacing Plyr.js) that integrates with a custom NVR scrollable timeline. It supports visual tick-mark alignments, exact second-by-second seek jumps (via the "Jump to Time" calendar modal), and a smooth red floating playhead that tracks playback without flickering.
 
 ---
 
@@ -105,9 +101,9 @@ The video stream goes through an advanced pipeline to maximize hardware accelera
 *   `starts_all.sh` - Master startup script. Kills stale processes, cleans up temporary `Streams/` segments, pre-creates necessary folders, and starts the Node.js server.
 *   `cam[1-4].sh` - Individual camera loops. They query `storage_select.sh` for the emptiest disk path, and launch `yolo_rtsp_hls.py` with camera-specific RTSP URLs and GPU devices.
 *   `storage_select.sh` - Capacity-comparing shell script. Scans mounts in `/proc/mounts`, tests write permissions, and outputs the writeable path containing the most free bytes.
-*   `yolo_rtsp_hls.py` - Core Python script. Handles subprocess pipes (`decode_proc` & `ffmpeg`), runs YOLO inference, draws bounding boxes, handles frame conversions, and contains the auto-cleanup logic.
-*   `server.js` - Express/Node backend. Exposes dashboard login, serves streams, provides log querying APIs (`/api/system-logs`), tracks disk stats, and handles socket connections.
-*   `index.html` - The web dashboard front-end. Built with clean CSS variables and Plyr.js. Handles user authentication, live multi-stream layout, logs card rendering, NVR recordings playback, and NVR time-jumping.
+*   `yolo_rtsp_hls.py` - Core Python script. Handles subprocess pipes (`decode_proc` & `ffmpeg`), runs YOLO inference, draws bounding boxes, handles frame conversions, and contains the auto-cleanup/rotation logic.
+*   `server.js` - Express/Node backend. Exposes dashboard login with robust synchronous file session storage (preventing race condition errors), provides log querying APIs (`/api/system-logs`), tracks disk stats, and handles socket connections.
+*   `index.html` - The web dashboard front-end. Built with clean CSS variables and custom styled native HTML5 media player controls. Handles user authentication, live multi-stream layout, logs card rendering, NVR recordings playback with a high-fidelity scrollable timeline, and exact NVR time-jumping.
 
 ---
 
@@ -191,7 +187,7 @@ journalctl -u sispala-stack.service -f
 
 ### Managing storage:
 *   The python script checks the active disk partition every 60 seconds.
-*   If the available space falls below **5 GB** (configurable via the `MIN_FREE_GB` environment variable), it triggers the **Auto-Cleanup** routine, which deletes the oldest `.mp4` video files until 5 GB of free space is restored.
+*   If the available space falls below the **Lower Limit (5 GB)** (configurable via the `MIN_FREE_GB` environment variable), it triggers the **Auto-Cleanup** routine, which deletes the oldest `.mp4` video files until the **Upper Limit (10 GB)** (configurable via the `TARGET_FREE_GB` environment variable) of free space is restored.
 *   Check the dashboard panel or read `cleanup.log` directly to inspect cleanup actions:
     ```bash
     cat cleanup.log
