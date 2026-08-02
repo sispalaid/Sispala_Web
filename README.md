@@ -93,6 +93,7 @@ The video stream goes through an advanced pipeline to maximize hardware accelera
 *   **Globally-Aware Storage Rotation:** When disk space on all candidate drives runs low, the system evaluates all directories to locate the globally oldest `.mp4` file and rotates the active writer path to that drive so it can safely purge its old footage first, maintaining a continuous timeline history without loop bounces.
 *   **High/Low Watermark Auto-Cleanup:** Prevents constant disk thrashing by using a Lower Limit (`MIN_FREE_GB`, default 5 GB) to trigger cleanup, and an Upper Limit (`TARGET_FREE_GB`, default 10 GB) to stop it. Deletions occur in one batch to free up substantial space rather than executing disk edits every minute.
 *   **Custom NVR Playback Timeline:** Built a native styled HTML5 video player (replacing Plyr.js) that integrates with a custom NVR scrollable timeline. It supports visual tick-mark alignments, exact second-by-second seek jumps (via the "Jump to Time" calendar modal), and a smooth red floating playhead that tracks playback without flickering.
+*   **Crash-Resilient fMP4 Recordings:** Configured standard `.mp4` camera recording outputs as Fragmented MP4 files (using `frag_keyframe+empty_moov+default_base_moof` segment format options). This ensures that if a network drop, camera disconnect, or system restart occurs, the video file written up to that second remains completely healthy and playable.
 
 ---
 

@@ -414,6 +414,7 @@ def start_ffmpeg(
         '-sc_threshold', '0',
         '-f', 'segment',
         '-segment_time', str(segment_time),
+        '-segment_format_options', 'movflags=frag_keyframe+empty_moov+default_base_moof',
         '-strftime', '1',
         '-reset_timestamps', '1',
         record_pattern
