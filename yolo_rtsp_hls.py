@@ -89,7 +89,7 @@ def log_startup(args, width, height, fps, out_size, inf_size, encode_fps):
 
 
 
-def cleanup_old_recordings(record_dir, min_free_bytes):
+def cleanup_old_recordings(record_dir, min_free_bytes, target_free_bytes):
     try:
         total, used, free = shutil.disk_usage(record_dir)
     except Exception:
@@ -98,7 +98,7 @@ def cleanup_old_recordings(record_dir, min_free_bytes):
     if free >= min_free_bytes:
         return
 
-    msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Storage Alert: Free space on '{record_dir}' is low ({free / (1024**3):.2f} GB remaining). Running cleanup...\n"
+    msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Storage Alert: Free space on '{record_dir}' ({free / (1024**3):.2f} GB) is below lower limit ({min_free_bytes / (1024**3):.1f} GB). Cleaning up to reach target upper limit ({target_free_bytes / (1024**3):.1f} GB)...\n"
     print(msg.strip())
     try:
         with open('cleanup.log', 'a') as f:
@@ -121,7 +121,7 @@ def cleanup_old_recordings(record_dir, min_free_bytes):
     for file_name, file_path in mp4_files:
         try:
             total, used, free = shutil.disk_usage(record_dir)
-            if free >= min_free_bytes:
+            if free >= target_free_bytes:
                 break
             file_size = os.path.getsize(file_path)
             os.remove(file_path)
@@ -135,7 +135,7 @@ def cleanup_old_recordings(record_dir, min_free_bytes):
             print(f"Error deleting file {file_path}: {e}")
 
     if deleted_count > 0:
-        done_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Cleanup complete. Successfully freed {freed_bytes / (1024**3):.2f} GB by deleting {deleted_count} file(s).\n"
+        done_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Cleanup complete. Freed {freed_bytes / (1024**3):.2f} GB by deleting {deleted_count} file(s). Current free space: {shutil.disk_usage(record_dir).free / (1024**3):.2f} GB.\n"
         print(done_msg.strip())
         try:
             with open('cleanup.log', 'a') as f:
@@ -201,7 +201,7 @@ def get_oldest_recording_file(directory):
     return first_file
 
 
-def check_and_rotate_storage(current_record_dir, min_free_bytes):
+def check_and_rotate_storage(current_record_dir, min_free_bytes, target_free_bytes):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     state_file = os.path.join(script_dir, 'active_storage.txt')
     
@@ -232,64 +232,67 @@ def check_and_rotate_storage(current_record_dir, min_free_bytes):
     # Active disk is full! Find all writeable candidates
     candidates = get_available_candidates(script_dir)
     
-    # Filter out current directory since it is full
-    other_candidates = [c for c in candidates if os.path.abspath(c) != os.path.abspath(current_record_dir)]
-    
-    if not other_candidates:
-        # No other available writeable disks! Fall back to file-by-file cleanup on the current disk
-        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active disk is full, but no other writeable storage candidates found. Falling back to file-by-file cleanup on current disk...")
-        cleanup_old_recordings(current_record_dir, min_free_bytes)
-        return
-        
-    # Find the candidate with the oldest recordings to write to
-    best_candidate = None
-    oldest_file_time = None
-    
-    for c in other_candidates:
+    # Try to find a candidate that has enough free space (greater than lower limit)
+    candidates_with_space = []
+    for c in candidates:
         try:
-            c_free = shutil.disk_usage(c).free
+            if shutil.disk_usage(c).free >= min_free_bytes:
+                candidates_with_space.append(c)
         except Exception:
             continue
             
-        oldest_file = get_oldest_recording_file(c)
-        
-        # If candidate has free space and has NO recordings, it is empty and ready!
-        if c_free >= min_free_bytes and oldest_file is None:
-            best_candidate = c
-            break
+    if candidates_with_space:
+        other_candidates_with_space = [c for c in candidates_with_space if os.path.abspath(c) != os.path.abspath(current_record_dir)]
+        if other_candidates_with_space:
+            best_candidate = other_candidates_with_space[0]
+            msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active disk ({current_record_dir}) is full. Rotating writing path to ({best_candidate}) which has available space...\n"
+            print(msg.strip())
+            try:
+                with open('cleanup.log', 'a') as f:
+                    f.write(msg)
+            except Exception:
+                pass
+            try:
+                with open(state_file, 'w') as f:
+                    f.write(best_candidate)
+            except Exception as e:
+                print(f"Failed to update state file: {e}")
+            sys.exit(0)
             
+    # If ALL candidates are full, find the candidate with the globally oldest recording
+    best_candidate = None
+    oldest_file_time = None
+    
+    for c in candidates:
+        oldest_file = get_oldest_recording_file(c)
         if oldest_file:
             if oldest_file_time is None or oldest_file < oldest_file_time:
                 oldest_file_time = oldest_file
                 best_candidate = c
                 
     if not best_candidate:
-        best_candidate = other_candidates[0]
+        best_candidate = candidates[0]
         
-    # If the best candidate is the current directory (which shouldn't happen here as it's filtered out,
-    # but as safe logic if we fall back), or if we decided to stay on current:
     if os.path.abspath(best_candidate) == os.path.abspath(current_record_dir):
-        cleanup_old_recordings(current_record_dir, min_free_bytes)
+        # Current directory contains the globally oldest files. Stay here and run local cleanup.
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active disk is full, but it holds the oldest recordings. Running local cleanup on current disk...")
+        cleanup_old_recordings(current_record_dir, min_free_bytes, target_free_bytes)
         return
-        
-    # Switch to the selected best candidate!
-    msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active disk ({current_record_dir}) is full. Rotating writing path to ({best_candidate}) containing the oldest global footage...\n"
-    print(msg.strip())
-    try:
-        with open('cleanup.log', 'a') as f:
-            f.write(msg)
-    except Exception:
-        pass
-        
-    # Update state file
-    try:
-        with open(state_file, 'w') as f:
-            f.write(best_candidate)
-    except Exception as e:
-        print(f"Failed to update state file: {e}")
-        
-    # Exit so that the shell script wrapper restarts the process on the new active directory
-    sys.exit(0)
+    else:
+        # Another directory contains the globally oldest files. Rotate to it so it can trigger its cleanup!
+        msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Active disk ({current_record_dir}) is full. Rotating writing path to ({best_candidate}) which contains the oldest global footage...\n"
+        print(msg.strip())
+        try:
+            with open('cleanup.log', 'a') as f:
+                f.write(msg)
+        except Exception:
+            pass
+        try:
+            with open(state_file, 'w') as f:
+                f.write(best_candidate)
+        except Exception as e:
+            print(f"Failed to update state file: {e}")
+        sys.exit(0)
 
 
 def start_ffmpeg(
@@ -462,10 +465,12 @@ def main():
     inf_size = parse_size(args.inference_size)
 
     min_free_gb = int(os.environ.get('MIN_FREE_GB', 5))
+    target_free_gb = int(os.environ.get('TARGET_FREE_GB', min_free_gb + 5))
     min_free_bytes = min_free_gb * 1024 * 1024 * 1024
+    target_free_bytes = target_free_gb * 1024 * 1024 * 1024
 
     # Ensure our startup directory matches the active storage state before we capture
-    check_and_rotate_storage(args.record_dir, min_free_bytes)
+    check_and_rotate_storage(args.record_dir, min_free_bytes, target_free_bytes)
 
     while True:
         cap = cv2.VideoCapture(args.source)
@@ -522,7 +527,7 @@ def main():
         now_time = time.time()
         if now_time - last_cleanup_time > cleanup_interval:
             last_cleanup_time = now_time
-            check_and_rotate_storage(args.record_dir, min_free_bytes)
+            check_and_rotate_storage(args.record_dir, min_free_bytes, target_free_bytes)
         if decode_proc:
             frame_bytes = int(width * height * 1.5)
             data = decode_proc.stdout.read(frame_bytes)

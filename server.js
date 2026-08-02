@@ -48,16 +48,20 @@ class FileSessionStore extends Store {
             try {
                 cb(null, JSON.parse(data));
             } catch (parseErr) {
-                cb(parseErr);
+                // Delete corrupted/empty session file to heal the store gracefully
+                fs.unlink(filePath, () => {});
+                cb(null, null);
             }
         });
     }
     set(sid, sessionData, cb) {
         const filePath = path.join(this.dir, `${sid}.json`);
-        fs.writeFile(filePath, JSON.stringify(sessionData), (err) => {
-            if (err) return cb && cb(err);
+        try {
+            fs.writeFileSync(filePath, JSON.stringify(sessionData));
             if (cb) cb(null);
-        });
+        } catch (err) {
+            if (cb) cb(err);
+        }
     }
     destroy(sid, cb) {
         const filePath = path.join(this.dir, `${sid}.json`);
@@ -368,9 +372,10 @@ app.post('/api/modify-account', (req, res) => {
         return res.json({ success: false, message: `Akun dengan username "${username}" tidak ditemukan.` });
     }
 
-    // Jika password baru diisi, perbarui password akun target
-    if (newPassword && newPassword.trim() !== "") {
-        targetUser.password = newPassword;
+    // Ambil password baru dari parameter newPassword atau password (mencegah mismatch parameter frontend)
+    const passwordVal = newPassword || req.body.password;
+    if (passwordVal && passwordVal.trim() !== "") {
+        targetUser.password = encryptPassword(passwordVal);
     }
 
     // Jika role baru dipilih/diisi, perbarui role akun target
