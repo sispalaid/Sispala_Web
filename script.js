@@ -887,6 +887,7 @@ async function loginAsGuest() {
         btn.innerText = "BUNYIKAN ALARM (CH 1)"; 
       }, 5000);
     });
+    setTimeout(() => { if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs(); }, 300);
 }
 
 function toggleSirine() {
@@ -900,10 +901,11 @@ function toggleSirine() {
       }
       btn.classList.add('active');
       btn.innerText = "SIRINE AKTIF!";
-      setTimeout(() => { 
-        btn.classList.remove('active'); 
-        btn.innerText = "BUNYIKAN SIRINE (CH 2)"; 
+      setTimeout(() => {
+        btn.classList.remove('active');
+        btn.innerText = "BUNYIKAN SIRINE (CH 2)";
       }, 5000);
+      setTimeout(() => { if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs(); }, 300);
     });
 }
 
@@ -990,6 +992,7 @@ async function deleteExistingAccount() {
             document.getElementById('edit-role').value = '';
             // Perbarui daftar dropdown suggest
             if (typeof updateUsernameSuggestions === 'function') updateUsernameSuggestions();
+            if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
         } else {
             msgEl.style.color = 'var(--accent-3)';
             msgEl.textContent = data.error || 'Gagal menghapus akun.';
@@ -1076,6 +1079,7 @@ async function actionDeleteAccount(username) {
         if (data.success) {
             alert("Akun berhasil dihapus.");
             updateUsernameSuggestions(); // Segarkan tabel secara instan
+            if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
         } else {
             alert(data.error || "Gagal menghapus akun.");
         }
@@ -1247,11 +1251,13 @@ async function actionDeleteAccount(username) {
     }
 
     try {
-      await fetch('/api/audio/config', {
+      const res = await fetch('/api/audio/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ alarmFile, sirineFile, masterVolume })
       });
+      const data = await res.json();
+      if (data.success && typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
     } catch (e) {
       console.error("Gagal memperbarui konfigurasi audio:", e);
     }
@@ -1282,6 +1288,7 @@ async function actionDeleteAccount(username) {
         msgEl.textContent = data.message;
         fileInput.value = ''; // Clear file input
         fetchAudioLibrary();
+        if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
       } else {
         msgEl.style.color = '#e74c3c';
         msgEl.textContent = data.error || 'Gagal mengunggah file.';
@@ -1308,7 +1315,9 @@ async function actionDeleteAccount(username) {
         body: JSON.stringify({ filename, channel })
       });
       const data = await res.json();
-      if (!data.success && msgEl) {
+      if (data.success) {
+        if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
+      } else if (msgEl) {
         msgEl.style.color = 'var(--accent-3)';
         msgEl.textContent = data.error || 'Gagal memulai broadcast.';
       }
@@ -1325,9 +1334,12 @@ async function actionDeleteAccount(username) {
     try {
       const res = await fetch('/api/audio/pause', { method: 'POST' });
       const data = await res.json();
-      if (data.success && msgEl) {
-        msgEl.style.color = 'var(--accent-2)';
-        msgEl.textContent = 'Broadcast di-pause.';
+      if (data.success) {
+        if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
+        if (msgEl) {
+          msgEl.style.color = 'var(--accent-2)';
+          msgEl.textContent = 'Broadcast di-pause.';
+        }
       } else if (msgEl) {
         msgEl.style.color = 'var(--accent-3)';
         msgEl.textContent = data.error || 'Gagal mem-pause broadcast.';
@@ -1342,9 +1354,12 @@ async function actionDeleteAccount(username) {
     try {
       const res = await fetch('/api/audio/resume', { method: 'POST' });
       const data = await res.json();
-      if (data.success && msgEl) {
-        msgEl.style.color = 'var(--accent-1)';
-        msgEl.textContent = 'Melanjutkan broadcast...';
+      if (data.success) {
+        if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
+        if (msgEl) {
+          msgEl.style.color = 'var(--accent-1)';
+          msgEl.textContent = 'Melanjutkan broadcast...';
+        }
       } else if (msgEl) {
         msgEl.style.color = 'var(--accent-3)';
         msgEl.textContent = data.error || 'Gagal melanjutkan broadcast.';
@@ -1359,9 +1374,12 @@ async function actionDeleteAccount(username) {
     try {
       const res = await fetch('/api/audio/stop', { method: 'POST' });
       const data = await res.json();
-      if (data.success && msgEl) {
-        msgEl.style.color = 'var(--ink-2)';
-        msgEl.textContent = 'Broadcast dihentikan.';
+      if (data.success) {
+        if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
+        if (msgEl) {
+          msgEl.style.color = 'var(--ink-2)';
+          msgEl.textContent = 'Broadcast dihentikan.';
+        }
       } else if (msgEl) {
         msgEl.style.color = 'var(--accent-3)';
         msgEl.textContent = data.error || 'Gagal menghentikan broadcast.';
@@ -1385,6 +1403,7 @@ async function actionDeleteAccount(username) {
           msgEl.textContent = data.message || 'File berhasil dihapus.';
         }
         fetchAudioLibrary();
+        if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
       } else if (msgEl) {
         msgEl.style.color = 'var(--accent-3)';
         msgEl.textContent = data.error || 'Gagal menghapus file.';
@@ -1403,9 +1422,12 @@ async function actionDeleteAccount(username) {
         body: JSON.stringify({ filename, defaultChannel: channel })
       });
       const data = await res.json();
-      if (data.success && msgEl) {
-        msgEl.style.color = 'var(--accent-1)';
-        msgEl.textContent = `Channel default untuk "${filename}" diubah ke ${channel.toUpperCase()}.`;
+      if (data.success) {
+        if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
+        if (msgEl) {
+          msgEl.style.color = 'var(--accent-1)';
+          msgEl.textContent = `Channel default untuk "${filename}" diubah ke ${channel.toUpperCase()}.`;
+        }
       } else if (msgEl) {
         msgEl.style.color = 'var(--accent-3)';
         msgEl.textContent = data.error || 'Gagal mengubah channel default.';
@@ -1550,7 +1572,8 @@ async function actionDeleteAccount(username) {
             // ========================================================
             // SEKARANG INI AKAN BERJALAN OTOMATIS TANPA REFRESH WEB
             // ========================================================
-            updateUsernameSuggestions(); 
+            updateUsernameSuggestions();
+            if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
             
         } else {
             msgEl.style.color = '#e74c3c';
@@ -1591,6 +1614,7 @@ async function actionDeleteAccount(username) {
               userEl.value = '';
               passEl.value = '';
               roleEl.value = '';
+              if (typeof fetchSuperadminLogs === 'function') fetchSuperadminLogs();
           } else {
               msgEl.style.color = '#e74c3c';
               msgEl.innerText = data.message;
@@ -1605,6 +1629,12 @@ async function actionDeleteAccount(username) {
     fetchRecordings();
     fetchStorageStats();
     setInterval(fetchStorageStats, 5000);
+    setInterval(() => {
+      const panel = document.getElementById('superadmin-panel');
+      if (panel && panel.style.display !== 'none' && typeof fetchSuperadminLogs === 'function') {
+        fetchSuperadminLogs();
+      }
+    }, 10000);
     const hourInput = document.getElementById('time-hour');
     const minuteInput = document.getElementById('time-minute');
     const secondInput = document.getElementById('time-second');
