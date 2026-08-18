@@ -1483,8 +1483,27 @@ async function actionDeleteAccount(username) {
             const reversedLogs = data.logs.reverse();
             
             // Sekarang kita lakukan perulangan dari data yang sudah dibalik
+            const actionBadgeMap = {
+                'LOGIN': 'badge-login',
+                'LOGOUT': 'badge-logout',
+                'ALARM': 'badge-alarm',
+                'SIRINE': 'badge-sirine',
+                'AUDIO_PLAY': 'badge-play',
+                'AUDIO_PAUSE': 'badge-pause',
+                'AUDIO_RESUME': 'badge-resume',
+                'AUDIO_STOP': 'badge-stop',
+                'AUDIO_UPLOAD': 'badge-upload',
+                'AUDIO_DELETE': 'badge-delete',
+                'AUDIO_CHANNEL': 'badge-config',
+                'AUDIO_CONFIG_UPDATE': 'badge-config',
+                'CREATE_ACCOUNT': 'badge-config',
+                'MODIFY_ACCOUNT': 'badge-config',
+                'DELETE_ACCOUNT': 'badge-delete'
+            };
+
             reversedLogs.forEach(log => {
-                const badgeClass = log.action === 'LOGIN' ? 'badge-login' : 'badge-logout';
+                const actionKey = log.action.split(':')[0].trim();
+                const badgeClass = actionBadgeMap[actionKey] || 'badge-other';
                 tbody.innerHTML += `
                     <tr>
                         <td style="color:#aaa">${log.timestamp}</td>

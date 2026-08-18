@@ -310,6 +310,8 @@ app.post('/api/create-account', (req, res) => {
     
     saveUsers(users);
 
+    writeLog(req.session.user.username, req.session.user.role, `CREATE_ACCOUNT: ${newUsername} (${newRole})`);
+
     res.json({ success: true, message: `Akun ${newUsername} dengan role [${newRole}] berhasil dibuat!` });
 });
 
@@ -389,7 +391,9 @@ app.post('/api/modify-account', (req, res) => {
     // Simpan seluruh perubahan kembali ke file users.json secara aman
     saveUsers(users);
 
-    res.json({ 
+    writeLog(req.session.user.username, req.session.user.role, `MODIFY_ACCOUNT: ${username}`);
+
+    res.json({
         success: true, 
         message: `Akun "${targetUser.username}" berhasil dimodifikasi secara permanen!` 
     });
@@ -424,6 +428,8 @@ app.post('/api/delete-account', (req, res) => {
         
         // Simpan kembali ke file users.json
         fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 4));
+
+        writeLog(req.session.user.username, req.session.user.role, `DELETE_ACCOUNT: ${username}`);
 
         res.json({ success: true, message: `Akun "${username}" berhasil dihapus.` });
     } catch (e) {
@@ -1244,6 +1250,7 @@ app.post('/api/audio/config', requireSuperadmin, (req, res) => {
         }
     }
     saveAudioConfig(config);
+    writeLog(req.session.user.username, req.session.user.role, `AUDIO_CONFIG_UPDATE: alarm=${config.alarmFile}, sirine=${config.sirineFile}, vol=${config.masterVolume}`);
     res.json({ success: true, message: 'Konfigurasi audio berhasil diperbarui!', config });
 });
 
@@ -1266,6 +1273,7 @@ app.post('/api/audio/upload', requireSuperadmin, (req, res) => {
                 defaultChannel: 'stereo'
             });
             saveAudioLibrary(lib);
+            writeLog(req.session.user.username, req.session.user.role, `AUDIO_UPLOAD: ${req.file.filename}`);
             res.json({ success: true, message: `File audio "${req.file.filename}" berhasil diunggah!`, filename: req.file.filename });
         } catch (e) {
             res.status(500).json({ error: 'Gagal memperbarui database audio: ' + e.message });
@@ -1302,6 +1310,7 @@ app.delete('/api/audio/:filename', requireSuperadmin, (req, res) => {
         if (fs.existsSync(filePath)) {
             fs.unlinkSync(filePath);
         }
+        writeLog(req.session.user.username, req.session.user.role, `AUDIO_DELETE: ${filename}`);
         res.json({ success: true, message: `File audio "${filename}" berhasil dihapus!` });
     } catch (e) {
         res.status(500).json({ error: 'Gagal menghapus file: ' + e.message });
@@ -1325,6 +1334,7 @@ app.post('/api/audio/update-channel', requireSuperadmin, (req, res) => {
         }
         found.defaultChannel = defaultChannel;
         saveAudioLibrary(lib);
+        writeLog(req.session.user.username, req.session.user.role, `AUDIO_CHANNEL: ${filename} (${defaultChannel})`);
         res.json({ success: true, message: 'Channel default berhasil diperbarui!' });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -1382,6 +1392,8 @@ app.post('/api/audio/play', requireSuperadmin, (req, res) => {
     const command = `mpv ${mpvArgs} "${filePath}"`;
     console.log(`Menjalankan broadcast: ${command}`);
 
+    writeLog(req.session.user.username, req.session.user.role, `AUDIO_PLAY: ${filename} (${channel || 'stereo'})`);
+
     stopActiveBroadcast().then(() => {
         const proc = exec(command, (error) => {
             if (error && !proc.killed) {
@@ -1413,6 +1425,7 @@ app.post('/api/audio/pause', requireSuperadmin, (req, res) => {
     try {
         activeBroadcast.proc.kill('SIGSTOP');
         activeBroadcast.isPaused = true;
+        writeLog(req.session.user.username, req.session.user.role, 'AUDIO_PAUSE');
         res.json({ success: true, message: 'Broadcast di-pause.' });
     } catch (e) {
         res.status(500).json({ error: 'Gagal mem-pause broadcast: ' + e.message });
@@ -1430,6 +1443,7 @@ app.post('/api/audio/resume', requireSuperadmin, (req, res) => {
     try {
         activeBroadcast.proc.kill('SIGCONT');
         activeBroadcast.isPaused = false;
+        writeLog(req.session.user.username, req.session.user.role, 'AUDIO_RESUME');
         res.json({ success: true, message: 'Broadcast dilanjutkan.' });
     } catch (e) {
         res.status(500).json({ error: 'Gagal melanjutkan broadcast: ' + e.message });
@@ -1446,6 +1460,7 @@ app.post('/api/audio/stop', requireSuperadmin, (req, res) => {
         activeBroadcast.proc = null;
         activeBroadcast.filename = null;
         activeBroadcast.isPaused = false;
+        writeLog(req.session.user.username, req.session.user.role, 'AUDIO_STOP');
         res.json({ success: true, message: 'Broadcast dihentikan.' });
     } catch (e) {
         res.status(500).json({ error: 'Gagal menghentikan broadcast: ' + e.message });
@@ -1456,6 +1471,7 @@ app.post('/api/audio/stop', requireSuperadmin, (req, res) => {
 app.get('/api/trigger-alarm', (req, res) => {
     if (req.session.user && (req.session.user.role === 'admin' || req.session.user.role === 'superadmin')) {
         console.log(`Alarm CH1 dipicu oleh: ${req.session.user.username}`);
+        writeLog(req.session.user.username, req.session.user.role, 'ALARM');
 
         const config = readAudioConfig();
         const alarmFile = getAudioFilePath(config.alarmFile);
@@ -1493,6 +1509,7 @@ app.get('/api/trigger-alarm', (req, res) => {
 app.get('/api/trigger-sirine', (req, res) => {
     if (req.session.user && (req.session.user.role === 'admin' || req.session.user.role === 'superadmin')) {
         console.log(`Sirine CH2 dipicu oleh: ${req.session.user.username}`);
+        writeLog(req.session.user.username, req.session.user.role, 'SIRINE');
 
         const config = readAudioConfig();
         const sirineFile = getAudioFilePath(config.sirineFile);

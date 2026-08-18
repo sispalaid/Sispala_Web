@@ -473,6 +473,16 @@ a:hover { color: var(--accent-1-dark); text-decoration: underline; }
 
 .badge-login { color: var(--success); font-weight: 700; }
 .badge-logout { color: var(--accent-3); font-weight: 700; }
+.badge-alarm { color: #ff5555; font-weight: 700; }
+.badge-sirine { color: #ffb86c; font-weight: 700; }
+.badge-play { color: #50fa7b; font-weight: 700; }
+.badge-pause { color: #f1fa8c; font-weight: 700; }
+.badge-resume { color: #50fa7b; font-weight: 700; }
+.badge-stop { color: #ff6e6e; font-weight: 700; }
+.badge-upload { color: #8be9fd; font-weight: 700; }
+.badge-delete { color: #ff5555; font-weight: 700; }
+.badge-config { color: #bd93f9; font-weight: 700; }
+.badge-other { color: var(--ink-2); font-weight: 700; }
 
 /* -------------------- META / FOOTER -------------------- */
 .meta-panel {
