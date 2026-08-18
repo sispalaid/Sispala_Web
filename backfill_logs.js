@@ -39,10 +39,10 @@ function roleOf(username) {
   return 'admin'; // fallback: alarm/sirine allowed for admin+superadmin
 }
 
-// journalctl short-iso line: 2026-06-19T20:39:47[.123456][+0700] host ident[pid]: Msg
-// The ident can be "node", the unit name, or the process comm. Extract the
+// journalctl short-iso line: 2026-06-19T20:39:47[.123456][+07:00|+0700] host ident[pid]: Msg
+// The ident can be "node", "bash", the unit name, or the process comm. Extract the
 // timestamp, then take the message as everything after the first "ident[pid]:" colon.
-const LINE_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{4})?\s+\S+\s+.+?:\s*(.*)$/;
+const LINE_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:[+-]\d{2}:?\d{2})?\s+\S+\s+.+?:\s*(.*)$/;
 
 // Reformat an ISO timestamp to writeLog() WIB format: "19/6/2026, 20.39.47"
 function wibTimestamp(iso) {
@@ -53,8 +53,9 @@ function wibTimestamp(iso) {
   return `${parseInt(d, 10)}/${parseInt(mo, 10)}/${y}, ${h}.${mi}.${s}`;
 }
 
-// Groups: 1 = lavfi filter (undefined when stereo), 2 = quoted file path
-const PLAY_RE = /^Menjalankan broadcast: mpv --no-video --volume=100 --input-ipc-server=\S+ (?:--af=lavfi="(\[pan=stereo\|(?:c0=c0\|c1=0\*c0|c0=0\*c0\|c1=c0)\])" )?"(.+)"$/;
+const PLAY_RE = /^Menjalankan broadcast: mpv (.*)$/;
+const CHANNEL_RE = /--af=lavfi="\[pan=stereo\|(c0=c0\|c1=0\*c0|c0=0\*c0\|c1=c0)\]/;
+const FILE_RE = /"(.+)"$/;
 
 function parseLine(ts, msg) {
   let m = msg.match(/^Alarm CH1 dipicu oleh: (\S+)$/);
@@ -65,8 +66,11 @@ function parseLine(ts, msg) {
 
   m = msg.match(PLAY_RE);
   if (m) {
-    const file = path.basename(m[2]);
-    const channel = m[1] ? (m[1].includes('c1=0*c0') ? 'left' : 'right') : 'stereo';
+    const cmd = m[1];
+    const af = cmd.match(CHANNEL_RE);
+    const f = cmd.match(FILE_RE);
+    const file = f ? path.basename(f[1]) : 'unknown';
+    const channel = af ? (af[1].includes('c1=0*c0') ? 'left' : 'right') : 'stereo';
     const username = '<system>';
     return { username, role: roleOf(username), action: `AUDIO_PLAY: ${file} (${channel})`, timestamp: wibTimestamp(ts) };
   }
