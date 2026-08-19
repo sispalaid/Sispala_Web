@@ -1,7 +1,7 @@
 const streams = [
     { id: 1, name: 'Pak Ramelan' },
-    { id: 2, name: 'Pak Yudho 1' },
-    { id: 3, name: 'Pak Yudho 2' },
+    { id: 2, name: 'Pak Hendro' },
+    { id: 3, name: 'Pak Anggoro' },
     { id: 4, name: 'Pak RT' }
   ];
 
