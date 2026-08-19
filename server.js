@@ -1317,6 +1317,20 @@ app.delete('/api/audio/:filename', requireSuperadmin, (req, res) => {
     }
 });
 
+// 5b. Download an audio file from the library
+app.get('/api/audio/download/:filename', requireSuperadmin, (req, res) => {
+    const filename = req.params.filename;
+    // Prevent path traversal
+    if (!/^[\w.\- ]+$/.test(filename)) {
+        return res.status(400).json({ error: 'Nama file tidak valid.' });
+    }
+    const filePath = getAudioFilePath(filename);
+    if (!filePath) {
+        return res.status(404).json({ error: 'File audio tidak ditemukan di server.' });
+    }
+    res.download(filePath, filename);
+});
+
 // 6. Update default channel configuration
 app.post('/api/audio/update-channel', requireSuperadmin, (req, res) => {
     const { filename, defaultChannel } = req.body;

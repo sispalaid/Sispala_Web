@@ -1190,6 +1190,7 @@ async function actionDeleteAccount(username) {
               </select>
             </td>
             <td style="padding: 8px 6px; text-align: center; display: flex; gap: 4px; justify-content: center;">
+              <button onclick="downloadAudioFile('${file.filename}')" style="padding: 3px 6px; background: var(--accent-2); color: #000; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Download ⬇️</button>
               <button onclick="playAudioOnSpeakers('${file.filename}', 'channel-${index}')" style="padding: 3px 6px; background: var(--accent-1); color: #000; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Play 🔊</button>
               <button onclick="pauseAudioOnSpeakers()" style="padding: 3px 6px; background: var(--accent-2); color: #000; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Pause ⏸️</button>
               <button onclick="resumeAudioOnSpeakers()" style="padding: 3px 6px; background: #9bc1ff; color: #000; font-weight: bold; border-radius: 4px; font-size: 11px; border: none; cursor: pointer;">Resume ▶️</button>
@@ -1386,6 +1387,31 @@ async function actionDeleteAccount(username) {
       }
     } catch (e) {
       if (msgEl) msgEl.textContent = 'Koneksi error.';
+    }
+  }
+
+  async function downloadAudioFile(filename) {
+    try {
+      const res = await fetch(`/api/audio/download/${encodeURIComponent(filename)}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Gagal mengunduh file.');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      const msgEl = document.getElementById('audio-console-msg');
+      if (msgEl) {
+        msgEl.style.color = 'var(--accent-3)';
+        msgEl.textContent = e.message || 'Gagal mengunduh file.';
+      }
     }
   }
 
