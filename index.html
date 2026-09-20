@@ -261,8 +261,9 @@
       <video id="historyPlayer" controls preload="metadata" playsinline style="width: 100%; border-radius: 8px;">
         <source src="" type="video/mp4">
       </video>
-      <!-- Hidden player for pre-buffering next minute video -->
-      <video id="preloadPlayer" preload="auto" muted playsinline style="display: none;"></video>
+      <!-- Hidden players for multi-buffering adjacent minutes (before & after) -->
+      <video id="preloadPrevPlayer" preload="auto" muted playsinline style="display: none;"></video>
+      <video id="preloadNextPlayer" preload="auto" muted playsinline style="display: none;"></video>
       
       <!-- Unified NVR Timeline -->
       <div class="nvr-timeline-container">

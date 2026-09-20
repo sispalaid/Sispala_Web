@@ -171,12 +171,14 @@ const streams = [
   }
 
   const historyPlayer = document.getElementById('historyPlayer');
-  const preloadPlayer = document.getElementById('preloadPlayer');
+  const preloadPrevPlayer = document.getElementById('preloadPrevPlayer');
+  const preloadNextPlayer = document.getElementById('preloadNextPlayer');
   const fileListDiv = document.getElementById('fileList');
   const playingNowSpan = document.getElementById('playing-now');
 
   let currentPlaybackSpeed = 1.0;
-  let currentlyPreloadingFile = null;
+  let currentlyPreloadingPrev = null;
+  let currentlyPreloadingNext = null;
 
   function changePlaybackSpeed(val) {
     currentPlaybackSpeed = parseFloat(val) || 1.0;
@@ -190,25 +192,61 @@ const streams = [
   }
   window.changePlaybackSpeed = changePlaybackSpeed;
 
-  function preloadNextMinute() {
-    if (!preloadPlayer || playbackIndex < 0 || playbackIndex + 1 >= playbackQueue.length) {
+  function multiBufferAdjacentMinutes() {
+    if (playbackIndex < 0 || playbackQueue.length === 0) {
       const statusBadge = document.getElementById('nvr-buffer-status');
       if (statusBadge) statusBadge.style.display = 'none';
       return;
     }
-    const nextItem = playbackQueue[playbackIndex + 1];
     const cam = document.getElementById('camSelect').value;
-    if (nextItem && nextItem.name !== currentlyPreloadingFile) {
-      currentlyPreloadingFile = nextItem.name;
-      const nextUrl = `/recordings/${cam}/${nextItem.name}`;
-      preloadPlayer.src = nextUrl;
-      preloadPlayer.load();
-      const statusBadge = document.getElementById('nvr-buffer-status');
-      if (statusBadge) {
-        statusBadge.style.display = 'inline-block';
-        statusBadge.textContent = `⚡ Pre-buffering: ${nextItem.name.slice(11, 16)}`;
+    const prevItem = playbackIndex > 0 ? playbackQueue[playbackIndex - 1] : null;
+    const nextItem = (playbackIndex + 1 < playbackQueue.length) ? playbackQueue[playbackIndex + 1] : null;
+
+    let bufferedLabels = [];
+
+    // 1. Pre-buffer previous minute (N - 1)
+    if (preloadPrevPlayer) {
+      if (prevItem) {
+        if (prevItem.name !== currentlyPreloadingPrev) {
+          currentlyPreloadingPrev = prevItem.name;
+          preloadPrevPlayer.src = `/recordings/${cam}/${prevItem.name}`;
+          preloadPrevPlayer.load();
+        }
+        bufferedLabels.push(`◀ ${prevItem.name.slice(11, 16)}`);
+      } else {
+        currentlyPreloadingPrev = null;
+        preloadPrevPlayer.removeAttribute('src');
       }
     }
+
+    // 2. Pre-buffer next minute (N + 1)
+    if (preloadNextPlayer) {
+      if (nextItem) {
+        if (nextItem.name !== currentlyPreloadingNext) {
+          currentlyPreloadingNext = nextItem.name;
+          preloadNextPlayer.src = `/recordings/${cam}/${nextItem.name}`;
+          preloadNextPlayer.load();
+        }
+        bufferedLabels.push(`${nextItem.name.slice(11, 16)} ▶`);
+      } else {
+        currentlyPreloadingNext = null;
+        preloadNextPlayer.removeAttribute('src');
+      }
+    }
+
+    const statusBadge = document.getElementById('nvr-buffer-status');
+    if (statusBadge) {
+      if (bufferedLabels.length > 0) {
+        statusBadge.style.display = 'inline-block';
+        statusBadge.textContent = `⚡ Buffered: ${bufferedLabels.join(' | ')}`;
+      } else {
+        statusBadge.style.display = 'none';
+      }
+    }
+  }
+
+  function preloadNextMinute() {
+    multiBufferAdjacentMinutes();
   }
 
 
