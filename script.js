@@ -171,8 +171,45 @@ const streams = [
   }
 
   const historyPlayer = document.getElementById('historyPlayer');
+  const preloadPlayer = document.getElementById('preloadPlayer');
   const fileListDiv = document.getElementById('fileList');
   const playingNowSpan = document.getElementById('playing-now');
+
+  let currentPlaybackSpeed = 1.0;
+  let currentlyPreloadingFile = null;
+
+  function changePlaybackSpeed(val) {
+    currentPlaybackSpeed = parseFloat(val) || 1.0;
+    if (historyPlayer) {
+      historyPlayer.playbackRate = currentPlaybackSpeed;
+    }
+    const sel = document.getElementById('playbackSpeedSelect');
+    if (sel && parseFloat(sel.value) !== currentPlaybackSpeed) {
+      sel.value = String(currentPlaybackSpeed);
+    }
+  }
+  window.changePlaybackSpeed = changePlaybackSpeed;
+
+  function preloadNextMinute() {
+    if (!preloadPlayer || playbackIndex < 0 || playbackIndex + 1 >= playbackQueue.length) {
+      const statusBadge = document.getElementById('nvr-buffer-status');
+      if (statusBadge) statusBadge.style.display = 'none';
+      return;
+    }
+    const nextItem = playbackQueue[playbackIndex + 1];
+    const cam = document.getElementById('camSelect').value;
+    if (nextItem && nextItem.name !== currentlyPreloadingFile) {
+      currentlyPreloadingFile = nextItem.name;
+      const nextUrl = `/recordings/${cam}/${nextItem.name}`;
+      preloadPlayer.src = nextUrl;
+      preloadPlayer.load();
+      const statusBadge = document.getElementById('nvr-buffer-status');
+      if (statusBadge) {
+        statusBadge.style.display = 'inline-block';
+        statusBadge.textContent = `⚡ Pre-buffering: ${nextItem.name.slice(11, 16)}`;
+      }
+    }
+  }
 
 
   // Fungsi Baru untuk Auto-Login sebagai Guest
@@ -303,8 +340,28 @@ async function loginAsGuest() {
   let draggedTimeSeconds = 0;
   let isPendingSeek = false;
   let pendingSeekTargetMs = 0;
+  let timelineWindowHours = 1; // Default 1 hour across viewport
 
+  function getTrackWidth(viewportWidth) {
+    return Math.max(viewportWidth, viewportWidth * (24 / timelineWindowHours));
+  }
 
+  function setTimelineWindow(hours) {
+    timelineWindowHours = Math.max(0.1, Math.min(24, Number(hours)));
+    
+    // Update active button state
+    document.querySelectorAll('.btn-zoom').forEach(btn => {
+      const val = parseFloat(btn.dataset.zoom);
+      if (Math.abs(val - timelineWindowHours) < 0.05) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+    });
+
+    drawNVRTimeline();
+  }
+  window.setTimelineWindow = setTimelineWindow;
 
   function alignTimelineToSeconds(seconds) {
     const timelineWrapper = document.getElementById('nvrTimelineWrapper');
@@ -312,7 +369,7 @@ async function loginAsGuest() {
     if (!timelineWrapper || !track) return;
     
     const viewportWidth = timelineWrapper.clientWidth;
-    const trackWidth = viewportWidth * 24; // 1 hour occupies exactly the viewport width (24 hours = 24 * viewportWidth)
+    const trackWidth = getTrackWidth(viewportWidth);
     track.style.width = `${trackWidth}px`;
 
     const pct = seconds / 86400;
@@ -331,20 +388,29 @@ async function loginAsGuest() {
     if (!track || !timelineWrapper) return;
 
     const viewportWidth = timelineWrapper.clientWidth;
-    const trackWidth = viewportWidth * 24;
+    const trackWidth = getTrackWidth(viewportWidth);
     track.style.width = `${trackWidth}px`;
 
     track.innerHTML = '';
 
-    // Render ticks every 15 minutes (1 hour = viewportWidth pixels)
-    for (let h = 0; h < 24; h++) {
-      for (let m = 0; m < 60; m += 15) {
-        const tick = document.createElement('div');
-        tick.className = 'nvr-tick';
-        tick.style.left = `${((h + m/60) / 24) * 100}%`;
-        tick.innerHTML = `<span>${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}</span>`;
-        track.appendChild(tick);
-      }
+    // Calculate dynamic tick intervals based on zoom level
+    let stepMinutes = 15;
+    if (timelineWindowHours >= 24) stepMinutes = 120;
+    else if (timelineWindowHours >= 12) stepMinutes = 60;
+    else if (timelineWindowHours >= 6) stepMinutes = 30;
+    else if (timelineWindowHours >= 2) stepMinutes = 15;
+    else if (timelineWindowHours >= 1) stepMinutes = 5;
+    else if (timelineWindowHours >= 0.5) stepMinutes = 2;
+    else stepMinutes = 1;
+
+    for (let totalMinutes = 0; totalMinutes < 1440; totalMinutes += stepMinutes) {
+      const h = Math.floor(totalMinutes / 60);
+      const m = totalMinutes % 60;
+      const tick = document.createElement('div');
+      tick.className = 'nvr-tick';
+      tick.style.left = `${(totalMinutes / 1440) * 100}%`;
+      tick.innerHTML = `<span>${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}</span>`;
+      track.appendChild(tick);
     }
     // Final 24:00 tick
     const tick24 = document.createElement('div');
@@ -387,7 +453,9 @@ async function loginAsGuest() {
       const file = playbackQueue.find(f => f.name === selectedRecording.name);
       if (file) {
         const currentMs = file.timestampMs + (historyPlayer.currentTime * 1000);
-        updatePlayhead(currentMs);
+        const date = new Date(currentMs);
+        const sec = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+        alignTimelineToSeconds(sec);
       } else {
         alignTimelineToSeconds(0);
       }
@@ -487,8 +555,10 @@ async function loginAsGuest() {
         if (offsetSec > 0 && isFinite(offsetSec)) {
           try { historyPlayer.currentTime = offsetSec; } catch (e) {}
         }
+        historyPlayer.playbackRate = currentPlaybackSpeed;
         historyPlayer.play().catch(() => {});
         isPendingSeek = false;
+        preloadNextMinute();
       };
 
       if (historyPlayer.readyState >= 1) {
@@ -497,6 +567,7 @@ async function loginAsGuest() {
         historyPlayer.addEventListener('loadedmetadata', applySeekAndPlay, { once: true });
         // Immediately start buffering and playing
         historyPlayer.play().catch(() => {});
+        preloadNextMinute();
         setTimeout(() => {
           if (isPendingSeek) applySeekAndPlay();
         }, 1200);
@@ -507,9 +578,11 @@ async function loginAsGuest() {
         pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
         updatePlayhead(pendingSeekTargetMs);
         try { historyPlayer.currentTime = offsetSec; } catch (e) {}
+        historyPlayer.playbackRate = currentPlaybackSpeed;
         historyPlayer.play().catch(() => {
           isPendingSeek = false;
         });
+        preloadNextMinute();
       }
     }
   }
@@ -1714,7 +1787,7 @@ async function actionDeleteAccount(username) {
         let newX = dragStartTrackX + dx;
         
         const viewportWidth = timelineWrapper.clientWidth;
-        const trackWidth = viewportWidth * 24;
+        const trackWidth = getTrackWidth(viewportWidth);
         newX = Math.max(viewportWidth / 2 - trackWidth, Math.min(viewportWidth / 2, newX));
         
         currentTrackX = newX;
@@ -1746,7 +1819,7 @@ async function actionDeleteAccount(username) {
         const rect = timelineWrapper.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const viewportWidth = timelineWrapper.clientWidth;
-        const trackWidth = viewportWidth * 24;
+        const trackWidth = getTrackWidth(viewportWidth);
 
         const pct = (viewportWidth / 2 - currentTrackX + (mouseX - viewportWidth / 2)) / trackWidth;
         const targetSeconds = Math.max(0, Math.min(86399, pct * 86400));
@@ -1769,7 +1842,7 @@ async function actionDeleteAccount(username) {
         let newX = dragStartTrackX + dx;
         
         const viewportWidth = timelineWrapper.clientWidth;
-        const trackWidth = viewportWidth * 24;
+        const trackWidth = getTrackWidth(viewportWidth);
         newX = Math.max(viewportWidth / 2 - trackWidth, Math.min(viewportWidth / 2, newX));
         
         currentTrackX = newX;
@@ -1796,6 +1869,25 @@ async function actionDeleteAccount(username) {
         }
       });
 
+      // Mouse wheel zoom support on timeline
+      timelineWrapper.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomLevels = [24, 12, 6, 2, 1, 0.5, 0.16666];
+        let currentIdx = zoomLevels.findIndex(z => Math.abs(z - timelineWindowHours) < 0.05);
+        if (currentIdx === -1) currentIdx = 4; // default 1h
+        if (e.deltaY < 0) {
+          // Wheel up: Zoom in
+          if (currentIdx < zoomLevels.length - 1) {
+            setTimelineWindow(zoomLevels[currentIdx + 1]);
+          }
+        } else {
+          // Wheel down: Zoom out
+          if (currentIdx > 0) {
+            setTimelineWindow(zoomLevels[currentIdx - 1]);
+          }
+        }
+      }, { passive: false });
+
       // Hover Tooltip logic for mouse pointer on timeline
       const hoverTooltip = document.getElementById('nvrHoverTooltip');
       if (hoverTooltip) {
@@ -1807,7 +1899,7 @@ async function actionDeleteAccount(username) {
           const rect = timelineWrapper.getBoundingClientRect();
           const mouseX = e.clientX - rect.left;
           const viewportWidth = timelineWrapper.clientWidth;
-          const trackWidth = viewportWidth * 24;
+          const trackWidth = getTrackWidth(viewportWidth);
 
           const pct = (viewportWidth / 2 - currentTrackX + (mouseX - viewportWidth / 2)) / trackWidth;
           const hoverSeconds = Math.max(0, Math.min(86399, pct * 86400));
@@ -1830,12 +1922,14 @@ async function actionDeleteAccount(username) {
 
   historyPlayer.addEventListener('play', () => {
     pauseLiveStreamsForPlayback();
+    historyPlayer.playbackRate = currentPlaybackSpeed;
     if (selectedRecording && (!historyPlayer.src || historyPlayer.src === '' || historyPlayer.src.endsWith('/'))) {
       setRecordingsSource(selectedRecording.cam, selectedRecording.name);
       historyPlayer.play().catch(() => {});
     }
     continuousPlayback = true;
     if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name} (Live feeds paused to boost bandwidth)`; playingNowSpan.style.color = '#3498db'; }
+    preloadNextMinute();
   });
   historyPlayer.addEventListener('pause', () => {
     if (!historyPlayer.ended) {
@@ -1850,6 +1944,11 @@ async function actionDeleteAccount(username) {
       resumeLiveStreamsAfterPlayback();
     }
   });
+  historyPlayer.addEventListener('ratechange', () => {
+    if (historyPlayer.playbackRate !== currentPlaybackSpeed && !historyPlayer.paused) {
+      historyPlayer.playbackRate = currentPlaybackSpeed;
+    }
+  });
   historyPlayer.addEventListener('timeupdate', () => {
     if (selectedRecording) {
       const ts = selectedRecording.timestampMs || parseRecordingTimestamp(selectedRecording.name);
@@ -1858,6 +1957,7 @@ async function actionDeleteAccount(username) {
         updatePlayhead(currentMs);
       }
     }
+    preloadNextMinute();
   });
 
   async function handleLogin() {
