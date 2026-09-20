@@ -44,8 +44,8 @@ while true; do
 		--resolution "${OUT_RES:-source}" \
 		--inference-size "640x360" \
 		--fps "source" \
-		--hls-time "1" \
-		--hls-list-size "3" \
+		--hls-time "2" \
+		--hls-list-size "4" \
 		--segment-time "60" \
 		--encoder "vaapi" \
 		--hw-device "/dev/dri/by-path/pci-0000:00:02.0-render" \

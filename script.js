@@ -141,7 +141,7 @@ const streams = [
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             video.play().catch(() => null);
             applyLiveDelay(video);
-            setInterval(() => applyLiveDelay(video), 2000);
+            setInterval(() => applyLiveDelay(video), 6000);
           });
         }
       });
@@ -254,12 +254,17 @@ async function loginAsGuest() {
         if (selectedRecording && selectedRecording.name === file.name) {
           item.classList.add('selected');
         }
-        item.onclick = () => selectRecording(cam, file.name);
+        item.onclick = () => selectRecording(cam, file.name, true);
         fileListDiv.appendChild(item);
       });
 
       if (!selectedRecording && playbackQueue.length > 0) {
-        selectRecording(cam, playbackQueue[0].name, false);
+        const firstFile = playbackQueue[0];
+        selectedRecording = { cam, name: firstFile.name, timestampMs: firstFile.timestampMs };
+        playbackIndex = 0;
+        updateSelectedUI(firstFile.name);
+        playingNowSpan.innerText = `Ready: ${cam} - ${firstFile.name}`;
+        playingNowSpan.style.color = '#9fd9ff';
       }
     } catch (err) {
       console.error(err);
@@ -914,7 +919,7 @@ function toggleSirine() {
   function applyLiveDelay(video) {
     const target = video.duration - LIVE_DELAY_SEC;
     if (!Number.isFinite(target) || target <= 0) return;
-    if (video.currentTime > target || video.currentTime < target - 1) { video.currentTime = target; }
+    if (Math.abs(video.currentTime - target) > 8) { video.currentTime = target; }
   }
 
   function goLive(id) { 
@@ -1654,13 +1659,13 @@ async function actionDeleteAccount(username) {
   window.onload = () => {
     fetchRecordings();
     fetchStorageStats();
-    setInterval(fetchStorageStats, 5000);
+    setInterval(fetchStorageStats, 20000);
     setInterval(() => {
       const panel = document.getElementById('superadmin-panel');
-      if (panel && panel.style.display !== 'none' && typeof fetchSuperadminLogs === 'function') {
+      if (panel && panel.style.display !== 'none' && panel.offsetParent !== null && typeof fetchSuperadminLogs === 'function') {
         fetchSuperadminLogs();
       }
-    }, 10000);
+    }, 15000);
     const hourInput = document.getElementById('time-hour');
     const minuteInput = document.getElementById('time-minute');
     const secondInput = document.getElementById('time-second');
@@ -1804,6 +1809,10 @@ async function actionDeleteAccount(username) {
   };
 
   historyPlayer.addEventListener('play', () => {
+    if (selectedRecording && (!historyPlayer.src || historyPlayer.src === '' || historyPlayer.src.endsWith('/'))) {
+      setRecordingsSource(selectedRecording.cam, selectedRecording.name);
+      historyPlayer.play().catch(() => {});
+    }
     continuousPlayback = true;
     if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name}`; playingNowSpan.style.color = '#3498db'; }
   });

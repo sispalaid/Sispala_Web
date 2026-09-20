@@ -56,12 +56,9 @@ class FileSessionStore extends Store {
     }
     set(sid, sessionData, cb) {
         const filePath = path.join(this.dir, `${sid}.json`);
-        try {
-            fs.writeFileSync(filePath, JSON.stringify(sessionData));
-            if (cb) cb(null);
-        } catch (err) {
-            if (cb) cb(err);
-        }
+        fs.writeFile(filePath, JSON.stringify(sessionData), (err) => {
+            if (cb) cb(err || null);
+        });
     }
     destroy(sid, cb) {
         const filePath = path.join(this.dir, `${sid}.json`);
@@ -154,8 +151,31 @@ function writeLog(username, role, action) {
     
     fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
 }
-// --- SETUP STATIC FILES ---
-app.use(express.static(__dirname));
+// --- COMPRESSION & SETUP STATIC FILES ---
+const compression = require('compression');
+app.use(compression({
+    filter: (req, res) => {
+        if (req.headers['x-no-compression']) return false;
+        // Do not compress video files or streaming media chunks
+        const contentType = res.getHeader('Content-Type') || '';
+        if (contentType.includes('video') || req.path.endsWith('.ts') || req.path.endsWith('.mp4') || req.path.endsWith('.m3u8')) {
+            return false;
+        }
+        return compression.filter(req, res);
+    }
+}));
+
+app.use(express.static(__dirname, {
+    maxAge: '1h',
+    setHeaders: (res, filePath) => {
+        // Live streams must not be cached; static JS, CSS, and logos can be cached safely
+        if (filePath.endsWith('.m3u8') || filePath.endsWith('.ts') || filePath.includes('Streams')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } else if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.png')) {
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+    }
+}));
 
 const recordingsDirName = 'Recordings';
 const recordingsRoot = path.join(__dirname, recordingsDirName);
@@ -170,6 +190,7 @@ app.get('/recordings/:cam/:file', requireAdminOrSuperadmin, (req, res) => {
                 if (req.query.download === 'true') {
                     return res.download(filePath, file);
                 }
+                res.setHeader('Accept-Ranges', 'bytes');
                 return res.sendFile(filePath, (err) => {
                     if (err) {
                         if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || (err.message && err.message.includes('aborted'))) {
@@ -712,7 +733,16 @@ function makeRootId(mountPoint) {
     return `mnt-${mountPoint.replace(/[^a-zA-Z0-9]+/g, '-')}`;
 }
 
-function getRecordingRoots() {
+let cachedRecordingRoots = null;
+let lastRootsCheckTime = 0;
+const ROOTS_CACHE_TTL_MS = 30000;
+
+function getRecordingRoots(forceRefresh = false) {
+    const now = Date.now();
+    if (!forceRefresh && cachedRecordingRoots && (now - lastRootsCheckTime < ROOTS_CACHE_TTL_MS)) {
+        return cachedRecordingRoots;
+    }
+
     const roots = [];
     const mounts = readMounts();
     const mountMap = new Map(mounts.map((m) => [m.mountPoint, m]));
@@ -771,6 +801,8 @@ function getRecordingRoots() {
             });
         });
 
+    cachedRecordingRoots = roots;
+    lastRootsCheckTime = now;
     return roots;
 }
 
@@ -822,7 +854,8 @@ async function getDiskStatsForRoot(root) {
 
     let recSizeBytes = cachedRecordingsBytes[root.id] || 0;
     const now = Date.now();
-    const shouldRunDu = !lastDuTime[root.id] || (now - lastDuTime[root.id] > 30000); // 30 seconds cache
+    // Cache du results for 15 minutes (900000 ms) to prevent continuous HDD head thrashing
+    const shouldRunDu = !lastDuTime[root.id] || (now - lastDuTime[root.id] > 900000);
 
     if (hasRecordings && shouldRunDu) {
         const duCmd = `du -sb "${recordingsPath}"`;
@@ -950,8 +983,8 @@ async function updateStorageStats() {
 function startStorageMonitor() {
     // Run initial update immediately
     updateStorageStats();
-    // Schedule background updates every 10 seconds
-    setInterval(updateStorageStats, 10000);
+    // Schedule background updates every 30 seconds
+    setInterval(updateStorageStats, 30000);
 }
 
 // --- API: Storage Stats (Capacity + Throughput + ETA) ---

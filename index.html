@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://cdn.plyr.io">
   <link rel="preconnect" href="https://cdnjs.cloudflare.com">
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" />
   <link rel="preload" as="image" href="./Logo_UNS.png">
   <script src="hls.min.js" defer></script>
@@ -246,7 +245,7 @@
   
   <div class="playback-container">
     <div class="playback-video-wrapper">
-      <video id="historyPlayer" controls autoplay playsinline style="width: 100%; border-radius: 8px;">
+      <video id="historyPlayer" controls preload="none" playsinline style="width: 100%; border-radius: 8px;">
         <source src="" type="video/mp4">
       </video>
       
