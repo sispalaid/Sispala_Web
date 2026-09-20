@@ -460,27 +460,31 @@ async function loginAsGuest() {
       pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
       updatePlayhead(pendingSeekTargetMs);
       
-      const onLoadedMetadata = () => {
+      const applySeekAndPlay = () => {
         if (offsetSec > 0 && isFinite(offsetSec)) {
-          historyPlayer.currentTime = offsetSec;
+          try { historyPlayer.currentTime = offsetSec; } catch (e) {}
         }
-        historyPlayer.play().then(() => {
-          isPendingSeek = false;
-        }).catch(() => {
-          isPendingSeek = false;
-        });
-        historyPlayer.removeEventListener('loadedmetadata', onLoadedMetadata);
+        historyPlayer.play().catch(() => {});
+        isPendingSeek = false;
       };
-      historyPlayer.addEventListener('loadedmetadata', onLoadedMetadata);
+
+      if (historyPlayer.readyState >= 1) {
+        applySeekAndPlay();
+      } else {
+        historyPlayer.addEventListener('loadedmetadata', applySeekAndPlay, { once: true });
+        // Immediately start buffering and playing
+        historyPlayer.play().catch(() => {});
+        setTimeout(() => {
+          if (isPendingSeek) applySeekAndPlay();
+        }, 1200);
+      }
     } else {
       if (offsetSec >= 0 && isFinite(offsetSec)) {
         isPendingSeek = true;
         pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
         updatePlayhead(pendingSeekTargetMs);
-        historyPlayer.currentTime = offsetSec;
-        historyPlayer.play().then(() => {
-          isPendingSeek = false;
-        }).catch(() => {
+        try { historyPlayer.currentTime = offsetSec; } catch (e) {}
+        historyPlayer.play().catch(() => {
           isPendingSeek = false;
         });
       }
@@ -816,6 +820,10 @@ async function loginAsGuest() {
   }
 
   function selectRecording(cam, filename, autoPlay = false) {
+    if (autoPlay) {
+      playFileAtOffset(filename, 0);
+      return;
+    }
     selectedRecording = { cam, name: filename, timestampMs: parseRecordingTimestamp(filename) };
     playbackIndex = playbackQueue.findIndex((item) => item.name === filename);
     
@@ -824,17 +832,6 @@ async function loginAsGuest() {
 
     playingNowSpan.innerText = `Ready: ${cam} - ${filename}`;
     playingNowSpan.style.color = '#9fd9ff';
-
-    const onLoadedMetadata = () => {
-      historyPlayer.currentTime = 0;
-      if (autoPlay) {
-        historyPlayer.play().catch(() => {});
-      } else {
-        historyPlayer.pause();
-      }
-      historyPlayer.removeEventListener('loadedmetadata', onLoadedMetadata);
-    };
-    historyPlayer.addEventListener('loadedmetadata', onLoadedMetadata);
   }
 
   function confirmJumpTime() {

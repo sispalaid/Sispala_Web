@@ -195,7 +195,8 @@ app.get('/recordings/:cam/:file', requireAdminOrSuperadmin, (req, res) => {
                     return res.download(filePath, file);
                 }
                 res.setHeader('Accept-Ranges', 'bytes');
-                return res.sendFile(filePath, (err) => {
+                res.setHeader('Cache-Control', 'public, max-age=86400');
+                return res.sendFile(filePath, { maxAge: '1d', acceptRanges: true }, (err) => {
                     if (err) {
                         if (err.code === 'ECONNRESET' || err.code === 'EPIPE' || (err.message && err.message.includes('aborted'))) {
                             // Client disconnected, standard browser behavior
@@ -687,6 +688,24 @@ app.get('/api/recordings/:cam', requireAdminOrSuperadmin, (req, res) => {
     });
 
     const sorted = Array.from(allFiles).sort().reverse();
+    // Exclude the actively recorded file if modified less than 10 seconds ago (segment in progress)
+    if (sorted.length > 0) {
+        const latestFile = sorted[0];
+        for (const root of roots) {
+            if (root.isMounted) {
+                const testPath = path.join(root.basePath, cam, latestFile);
+                try {
+                    if (fs.existsSync(testPath)) {
+                        const stat = fs.statSync(testPath);
+                        if (Date.now() - stat.mtimeMs < 10000) {
+                            sorted.shift();
+                            break;
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+    }
     res.json(sorted);
 });
 
