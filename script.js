@@ -121,6 +121,8 @@ const streams = [
   });
 
   let streamsInitialized = false;
+  const hlsInstances = [];
+
   function initializeStreams() {
       if (streamsInitialized) return;
       streamsInitialized = true;
@@ -138,6 +140,7 @@ const streams = [
           });
           hls.loadSource(url);
           hls.attachMedia(video);
+          hlsInstances.push(hls);
           hls.on(Hls.Events.MANIFEST_PARSED, () => {
             video.play().catch(() => null);
             applyLiveDelay(video);
@@ -145,6 +148,26 @@ const streams = [
           });
         }
       });
+  }
+
+  function pauseLiveStreamsForPlayback() {
+    hlsInstances.forEach(h => {
+      try { h.stopLoad(); } catch (e) {}
+    });
+    streams.forEach(stream => {
+      const v = document.getElementById(`video-${stream.id}`);
+      if (v && !v.paused) v.pause();
+    });
+  }
+
+  function resumeLiveStreamsAfterPlayback() {
+    hlsInstances.forEach(h => {
+      try { h.startLoad(); } catch (e) {}
+    });
+    streams.forEach(stream => {
+      const v = document.getElementById(`video-${stream.id}`);
+      if (v && v.paused) v.play().catch(() => {});
+    });
   }
 
   const historyPlayer = document.getElementById('historyPlayer');
@@ -1806,21 +1829,25 @@ async function actionDeleteAccount(username) {
   };
 
   historyPlayer.addEventListener('play', () => {
+    pauseLiveStreamsForPlayback();
     if (selectedRecording && (!historyPlayer.src || historyPlayer.src === '' || historyPlayer.src.endsWith('/'))) {
       setRecordingsSource(selectedRecording.cam, selectedRecording.name);
       historyPlayer.play().catch(() => {});
     }
     continuousPlayback = true;
-    if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name}`; playingNowSpan.style.color = '#3498db'; }
+    if (selectedRecording) { playingNowSpan.innerText = `Playing: ${selectedRecording.cam} - ${selectedRecording.name} (Live feeds paused to boost bandwidth)`; playingNowSpan.style.color = '#3498db'; }
   });
   historyPlayer.addEventListener('pause', () => {
     if (!historyPlayer.ended) {
       continuousPlayback = false;
+      resumeLiveStreamsAfterPlayback();
     }
   });
   historyPlayer.addEventListener('ended', () => {
     if (continuousPlayback) {
       playNextInQueue();
+    } else {
+      resumeLiveStreamsAfterPlayback();
     }
   });
   historyPlayer.addEventListener('timeupdate', () => {
