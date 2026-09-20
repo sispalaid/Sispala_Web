@@ -152,18 +152,22 @@ function writeLog(username, role, action) {
     fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
 }
 // --- COMPRESSION & SETUP STATIC FILES ---
-const compression = require('compression');
-app.use(compression({
-    filter: (req, res) => {
-        if (req.headers['x-no-compression']) return false;
-        // Do not compress video files or streaming media chunks
-        const contentType = res.getHeader('Content-Type') || '';
-        if (contentType.includes('video') || req.path.endsWith('.ts') || req.path.endsWith('.mp4') || req.path.endsWith('.m3u8')) {
-            return false;
+try {
+    const compression = require('compression');
+    app.use(compression({
+        filter: (req, res) => {
+            if (req.headers['x-no-compression']) return false;
+            // Do not compress video files or streaming media chunks
+            const contentType = res.getHeader('Content-Type') || '';
+            if (contentType.includes('video') || req.path.endsWith('.ts') || req.path.endsWith('.mp4') || req.path.endsWith('.m3u8')) {
+                return false;
+            }
+            return compression.filter(req, res);
         }
-        return compression.filter(req, res);
-    }
-}));
+    }));
+} catch (e) {
+    console.warn('[Server] Module compression not loaded, proceeding without gzip compression.');
+}
 
 app.use(express.static(__dirname, {
     maxAge: '1h',
