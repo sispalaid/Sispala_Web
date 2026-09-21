@@ -775,8 +775,6 @@ const preferredMounts = ['/home/sispala/archive', '/mnt/ext'];
 let cachedStorageStats = null;
 let storageHistory = [];
 const MAX_HISTORY = 12; // 12 samples * 10 seconds = 120 seconds (2 minutes) window
-let cachedRecordingsBytes = {};
-let lastDuTime = {};
 
 function readMounts() {
     const data = fs.readFileSync('/proc/mounts', 'utf8');
@@ -924,7 +922,6 @@ async function getDiskStatsForRoot(root) {
     const recordingsPath = root.basePath;
     const mountPath = root.mountPoint || recordingsPath;
     const hasMount = root.isMounted || root.id === 'local';
-    const hasRecordings = fs.existsSync(recordingsPath);
 
     let df = null;
     if (hasMount) {
@@ -937,24 +934,14 @@ async function getDiskStatsForRoot(root) {
         }
     }
 
-    let recSizeBytes = cachedRecordingsBytes[root.id] || 0;
-    const now = Date.now();
-    // Cache du results for 15 minutes (900000 ms) to prevent continuous HDD head thrashing
-    const shouldRunDu = !lastDuTime[root.id] || (now - lastDuTime[root.id] > 900000);
+    // Determine if this mount point is a dedicated external storage drive (e.g. /mnt/*, /media/*)
+    // vs a shared directory on the root OS partition (e.g. /home/sispala/archive or local)
+    const isDedicated = Boolean(
+        root.mountPoint && 
+        (root.mountPoint.startsWith('/mnt/') || root.mountPoint.startsWith('/media/') || root.mountPoint.startsWith('/run/media/'))
+    );
 
-    if (hasRecordings && shouldRunDu) {
-        const duCmd = `du -sb "${recordingsPath}"`;
-        try {
-            const duRaw = await execCommand(duCmd);
-            const duParts = duRaw.trim().split(/\s+/);
-            recSizeBytes = Number(duParts[0]);
-            if (Number.isNaN(recSizeBytes)) recSizeBytes = 0;
-            cachedRecordingsBytes[root.id] = recSizeBytes;
-            lastDuTime[root.id] = now;
-        } catch (err) {
-            console.error(`Failed to run du for ${recordingsPath}:`, err.message);
-        }
-    }
+    const recSizeBytes = df ? df.usedBytes : 0;
 
     return {
         id: root.id,
@@ -968,6 +955,7 @@ async function getDiskStatsForRoot(root) {
         availBytes: df ? df.availBytes : 0,
         percentUsed: df ? df.percentUsed : 0,
         recordingsBytes: recSizeBytes,
+        isDedicated,
         isMounted: hasMount,
         isPreferred: root.isPreferred
     };
@@ -1002,9 +990,9 @@ async function getStorageStats() {
     }
 
     const nowMs = Date.now();
-    const currentRecordingsBytes = totals.recordingsBytes;
+    const currentUsedBytes = totals.usedBytes;
 
-    storageHistory.push({ timestamp: nowMs, recordingsBytes: currentRecordingsBytes });
+    storageHistory.push({ timestamp: nowMs, usedBytes: currentUsedBytes });
     if (storageHistory.length > MAX_HISTORY) {
         storageHistory.shift();
     }
@@ -1014,7 +1002,7 @@ async function getStorageStats() {
         let totalPositiveBytes = 0;
         let totalPositiveSeconds = 0;
         for (let i = 1; i < storageHistory.length; i++) {
-            const deltaBytes = storageHistory[i].recordingsBytes - storageHistory[i - 1].recordingsBytes;
+            const deltaBytes = storageHistory[i].usedBytes - storageHistory[i - 1].usedBytes;
             const deltaSeconds = (storageHistory[i].timestamp - storageHistory[i - 1].timestamp) / 1000;
             if (deltaSeconds > 0) {
                 if (deltaBytes >= 0) {

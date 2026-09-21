@@ -1389,6 +1389,9 @@ async function actionDeleteAccount(username) {
           diskEl.className = 'storage-disk';
           const title = disk.label || disk.mountPoint || 'Disk';
           const status = disk.isMounted === false ? 'Missing' : 'Mounted';
+          const recInfo = (disk.isDedicated === false)
+            ? `${formatBytes(disk.recordingsBytes)} (Shared with OS)`
+            : formatBytes(disk.recordingsBytes);
           diskEl.innerHTML = `
             <div class="storage-disk-title">${title}</div>
             <div class="storage-bar" style="height: 6px; margin: 4px 0 8px; background: #0b111b; border: 1px solid var(--stroke-2); border-radius: 999px; overflow: hidden; width: 100%;">
@@ -1400,7 +1403,7 @@ async function actionDeleteAccount(username) {
             <div class="storage-disk-row">Size: <span>${formatBytes(disk.sizeBytes)}</span></div>
             <div class="storage-disk-row">Used: <span>${formatBytes(disk.usedBytes)} (${disk.percentUsed || 0}%)</span></div>
             <div class="storage-disk-row">Free: <span>${formatBytes(disk.availBytes)}</span></div>
-            <div class="storage-disk-row">Recordings: <span>${formatBytes(disk.recordingsBytes)}</span></div>
+            <div class="storage-disk-row">Recordings: <span>${recInfo}</span></div>
           `;
           storageEls.disks.appendChild(diskEl);
         });
