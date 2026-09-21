@@ -14,6 +14,34 @@ const streams = [
   let continuousPlayback = false;
   let selectedNVRDate = ''; 
   let nvrFilesForDay = []; 
+  let nvrDetectionEvents = [];
+  let nvrFileSummaries = {};
+
+  const CATEGORY_COLORS = {
+    person: '#ff9800',
+    vehicle: '#00e676',
+    animal: '#b388ff',
+    other: '#ff4081'
+  };
+
+  const CATEGORY_ICONS = {
+    person: '🚶',
+    vehicle: '🚗',
+    animal: '🐕',
+    other: '⚡'
+  };
+
+  function getMultiCategoryGradient(categories) {
+    if (!categories || categories.length === 0) return CATEGORY_COLORS.other;
+    if (categories.length === 1) return CATEGORY_COLORS[categories[0]] || CATEGORY_COLORS.other;
+
+    const step = 100 / categories.length;
+    const stops = categories.map((cat, i) => {
+      const color = CATEGORY_COLORS[cat] || CATEGORY_COLORS.other;
+      return `${color} ${(i * step).toFixed(1)}%, ${color} ${((i + 1) * step).toFixed(1)}%`;
+    });
+    return `linear-gradient(180deg, ${stops.join(', ')})`;
+  } 
   const jumpState = {
     calendarYear: null,
     calendarMonth: null,
@@ -324,6 +352,35 @@ async function loginAsGuest() {
         selectedNVRDate = `${yyyy}-${mm}-${dd}`;
       }
 
+      // Fetch AI detection events for the active date and camera
+      try {
+        const evRes = await fetch(`/api/events/${cam}?date=${selectedNVRDate}`);
+        const evData = await evRes.json();
+        if (evData && evData.success) {
+          nvrFileSummaries = evData.fileSummaries || {};
+          nvrDetectionEvents = (evData.events || []).map(ev => {
+            const fileObj = recordingsIndex.find(f => f.name === ev.video);
+            let secondsFromMidnight = 0;
+            if (fileObj) {
+              const d = new Date(fileObj.timestampMs);
+              secondsFromMidnight = d.getHours() * 3600 + d.getMinutes() * 60 + (ev.sec || 0);
+            }
+            return {
+              ...ev,
+              secondsFromMidnight
+            };
+          });
+          nvrDetectionEvents.sort((a, b) => a.secondsFromMidnight - b.secondsFromMidnight);
+        } else {
+          nvrFileSummaries = {};
+          nvrDetectionEvents = [];
+        }
+      } catch (err) {
+        console.warn('Gagal memuat data event deteksi:', err);
+        nvrFileSummaries = {};
+        nvrDetectionEvents = [];
+      }
+
       playbackQueue = recordingsIndex.filter(file => {
         const date = new Date(file.timestampMs);
         const yyyy = date.getFullYear();
@@ -348,6 +405,20 @@ async function loginAsGuest() {
         const date = new Date(file.timestampMs);
         const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
         item.innerText = `📁 ${timeStr} - ${file.name}`;
+        
+        // Append detection badges if events exist for this file
+        const summaryObj = nvrFileSummaries[file.name];
+        if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
+          const badgeWrap = document.createElement('span');
+          badgeWrap.className = 'file-item-badge-wrap';
+          for (const [cat, count] of Object.entries(summaryObj.summary)) {
+            const badge = document.createElement('span');
+            badge.className = `file-item-badge badge-${cat}`;
+            badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
+            badgeWrap.appendChild(badge);
+          }
+          item.appendChild(badgeWrap);
+        }
         
         if (selectedRecording && selectedRecording.name === file.name) {
           item.classList.add('selected');
@@ -481,6 +552,36 @@ async function loginAsGuest() {
       track.appendChild(block);
     });
 
+    // Render AI Detection Event Markers on top of the timeline track
+    nvrDetectionEvents.forEach(ev => {
+      const leftPx = (ev.secondsFromMidnight / 86400) * trackWidth;
+      const widthPx = Math.max((1 / 86400) * trackWidth, 3); // Minimum 3px visible width
+
+      const marker = document.createElement('div');
+      marker.className = 'nvr-event-marker';
+      marker.style.left = `${leftPx}px`;
+      marker.style.width = `${widthPx}px`;
+      marker.style.background = getMultiCategoryGradient(ev.categories);
+
+      const hours = Math.floor(ev.secondsFromMidnight / 3600);
+      const mins = Math.floor((ev.secondsFromMidnight % 3600) / 60);
+      const secs = ev.secondsFromMidnight % 60;
+      const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+      const classList = Object.entries(ev.classes || {})
+        .map(([cls, conf]) => `${CATEGORY_ICONS[cls] || '⚡'} ${cls} (${Math.round(conf * 100)}%)`)
+        .join(' · ');
+
+      marker.title = `🔔 [${timeStr}] ${classList || (ev.categories || []).join(', ')} (Klik untuk memutar)`;
+
+      marker.onclick = (e) => {
+        e.stopPropagation();
+        seekToTimeOfDay(ev.secondsFromMidnight);
+      };
+
+      track.appendChild(marker);
+    });
+
     const dateLabel = document.getElementById('nvr-timeline-date');
     if (dateLabel) {
       dateLabel.textContent = `Footage: ${selectedNVRDate}`;
@@ -501,6 +602,46 @@ async function loginAsGuest() {
       alignTimelineToSeconds(0);
     }
   }
+
+  function getCurrentPlaybackSecondsFromMidnight() {
+    if (!selectedRecording) return 0;
+    const file = playbackQueue.find(f => f.name === selectedRecording.name);
+    if (!file) return 0;
+    const currentMs = file.timestampMs + ((historyPlayer ? historyPlayer.currentTime : 0) * 1000);
+    const date = new Date(currentMs);
+    return date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+  }
+
+  function jumpToNextEvent() {
+    if (!nvrDetectionEvents || nvrDetectionEvents.length === 0) {
+      alert('Tidak ada event deteksi untuk rekaman tanggal ini.');
+      return;
+    }
+    const currentSec = getCurrentPlaybackSecondsFromMidnight();
+    const nextEv = nvrDetectionEvents.find(e => e.secondsFromMidnight > currentSec + 1);
+    if (nextEv) {
+      seekToTimeOfDay(nextEv.secondsFromMidnight);
+    } else {
+      seekToTimeOfDay(nvrDetectionEvents[0].secondsFromMidnight);
+    }
+  }
+  window.jumpToNextEvent = jumpToNextEvent;
+
+  function jumpToPrevEvent() {
+    if (!nvrDetectionEvents || nvrDetectionEvents.length === 0) {
+      alert('Tidak ada event deteksi untuk rekaman tanggal ini.');
+      return;
+    }
+    const currentSec = getCurrentPlaybackSecondsFromMidnight();
+    const prevEvents = nvrDetectionEvents.filter(e => e.secondsFromMidnight < currentSec - 1);
+    if (prevEvents.length > 0) {
+      const prevEv = prevEvents[prevEvents.length - 1];
+      seekToTimeOfDay(prevEv.secondsFromMidnight);
+    } else {
+      seekToTimeOfDay(nvrDetectionEvents[nvrDetectionEvents.length - 1].secondsFromMidnight);
+    }
+  }
+  window.jumpToPrevEvent = jumpToPrevEvent;
 
   function updatePlayhead(timestampMs) {
     if (isDraggingTimeline) return;

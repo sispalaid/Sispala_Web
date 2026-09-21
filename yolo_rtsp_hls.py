@@ -89,6 +89,128 @@ def log_startup(args, width, height, fps, out_size, inf_size, encode_fps):
 
 
 
+# Category mappings and BGR colors for OpenCV drawing
+# Person: Amber/Orange -> BGR (0, 152, 255) | Hex #ff9800
+# Vehicle: Emerald Green -> BGR (118, 230, 0) | Hex #00e676
+# Animal: Violet/Purple -> BGR (255, 136, 179) | Hex #b388ff
+# Other: Pink/Magenta -> BGR (129, 64, 255) | Hex #ff4081
+CATEGORY_MAPPING = {
+    'person': ('person', (0, 152, 255), '#ff9800'),
+    'bicycle': ('vehicle', (118, 230, 0), '#00e676'),
+    'car': ('vehicle', (118, 230, 0), '#00e676'),
+    'motorcycle': ('vehicle', (118, 230, 0), '#00e676'),
+    'bus': ('vehicle', (118, 230, 0), '#00e676'),
+    'truck': ('vehicle', (118, 230, 0), '#00e676'),
+    'traffic light': ('vehicle', (118, 230, 0), '#00e676'),
+    'dog': ('animal', (255, 136, 179), '#b388ff'),
+    'cat': ('animal', (255, 136, 179), '#b388ff'),
+    'bird': ('animal', (255, 136, 179), '#b388ff'),
+    'horse': ('animal', (255, 136, 179), '#b388ff'),
+    'sheep': ('animal', (255, 136, 179), '#b388ff'),
+    'cow': ('animal', (255, 136, 179), '#b388ff'),
+}
+
+
+def get_category_info(classname):
+    cn = (classname or '').lower()
+    if cn in CATEGORY_MAPPING:
+        return CATEGORY_MAPPING[cn]
+    return ('other', (129, 64, 255), '#ff4081')
+
+
+class DetectionEventTracker:
+    def __init__(self, cam, record_dir_getter):
+        self.cam = cam
+        self.record_dir_getter = record_dir_getter
+        self.current_minute_str = None  # e.g. "2026-09-21_14-23"
+        self.current_events = {}        # sec (int 0..59) -> { 'categories': set(), 'classes': dict(cls -> max_conf), 'max_conf': float }
+        self.last_flush_time = 0
+
+    def add_detection(self, timestamp_epoch, detected_items):
+        """
+        detected_items: list of (classname, confidence)
+        """
+        if not detected_items:
+            return
+
+        t_struct = time.localtime(timestamp_epoch)
+        minute_str = time.strftime('%Y-%m-%d_%H-%M', t_struct)
+        sec = t_struct.tm_sec
+
+        if self.current_minute_str is not None and minute_str != self.current_minute_str:
+            # New minute started -> flush the previous minute completely
+            self.flush(force=True)
+            self.current_minute_str = minute_str
+            self.current_events = {}
+        elif self.current_minute_str is None:
+            self.current_minute_str = minute_str
+            self.current_events = {}
+
+        if sec not in self.current_events:
+            self.current_events[sec] = {
+                'categories': set(),
+                'classes': {},
+                'max_conf': 0.0
+            }
+
+        entry = self.current_events[sec]
+        for classname, conf in detected_items:
+            cat_name, _, _ = get_category_info(classname)
+            entry['categories'].add(cat_name)
+            if classname not in entry['classes'] or conf > entry['classes'][classname]:
+                entry['classes'][classname] = round(float(conf), 2)
+            if conf > entry['max_conf']:
+                entry['max_conf'] = round(float(conf), 2)
+
+        # Periodically flush every 5 seconds so live segment info is saved without delay
+        now = time.time()
+        if now - self.last_flush_time >= 5:
+            self.flush(force=False)
+
+    def flush(self, force=False):
+        if not self.current_minute_str or not self.current_events:
+            return
+
+        record_dir = self.record_dir_getter()
+        if not record_dir or not os.path.exists(record_dir):
+            return
+
+        json_filename = f"{self.current_minute_str}.json"
+        json_path = os.path.join(record_dir, json_filename)
+        temp_path = json_path + ".tmp"
+
+        events_list = []
+        category_summary = {}
+
+        for sec in sorted(self.current_events.keys()):
+            e = self.current_events[sec]
+            cats = sorted(list(e['categories']))
+            events_list.append({
+                'sec': sec,
+                'categories': cats,
+                'classes': e['classes'],
+                'conf': e['max_conf']
+            })
+            for c in cats:
+                category_summary[c] = category_summary.get(c, 0) + 1
+
+        payload = {
+            'cam': self.cam,
+            'video': f"{self.current_minute_str}.mp4",
+            'eventCount': len(events_list),
+            'summary': category_summary,
+            'events': events_list
+        }
+
+        try:
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, indent=2)
+            os.replace(temp_path, json_path)
+            self.last_flush_time = time.time()
+        except Exception as err:
+            print(f"[{self.cam}] Error writing event sidecar {json_path}: {err}", flush=True)
+
+
 def cleanup_old_recordings(record_dir, min_free_bytes, target_free_bytes):
     try:
         total, used, free = shutil.disk_usage(record_dir)
@@ -125,6 +247,13 @@ def cleanup_old_recordings(record_dir, min_free_bytes, target_free_bytes):
                 break
             file_size = os.path.getsize(file_path)
             os.remove(file_path)
+            # Also clean up matching .json sidecar if present
+            sidecar_path = os.path.splitext(file_path)[0] + '.json'
+            if os.path.exists(sidecar_path):
+                try:
+                    os.remove(sidecar_path)
+                except Exception:
+                    pass
             deleted_count += 1
             freed_bytes += file_size
             del_msg = f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Deleted old recording: {file_name} ({file_size / (1024**2):.1f} MB freed)\n"
@@ -461,6 +590,7 @@ def main():
     record_dir = os.path.join(args.record_dir, args.cam)
     ensure_dir(streams_dir)
     ensure_dir(record_dir)
+    tracker = DetectionEventTracker(args.cam, lambda: record_dir)
 
     out_size = parse_size(args.resolution)
     inf_size = parse_size(args.inference_size)
@@ -595,6 +725,7 @@ def main():
         results = model.predict(inference_frame, verbose=False, device=args.device)
         detections = results[0].boxes
 
+        frame_detected_items = []
         for i in range(len(detections)):
             xyxy = detections[i].xyxy.cpu().numpy().squeeze().astype(int)
             xmin, ymin, xmax, ymax = xyxy
@@ -613,17 +744,23 @@ def main():
             classname = labels[classidx]
             label = f'{classname}: {int(conf * 100)}%'
 
-            cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (68, 148, 228), 2)
+            cat_name, box_color, _ = get_category_info(classname)
+            frame_detected_items.append((classname, conf))
+
+            cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), box_color, 2)
             (text_w, text_h), base = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
             y_label = max(ymin, text_h + 10)
             cv2.rectangle(
                 frame,
                 (xmin, y_label - text_h - 10),
                 (xmin + text_w, y_label + base - 10),
-                (68, 148, 228),
+                box_color,
                 cv2.FILLED
             )
             cv2.putText(frame, label, (xmin, y_label - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+        if frame_detected_items:
+            tracker.add_detection(time.time(), frame_detected_items)
 
         if out_size:
             out_w, out_h = out_size

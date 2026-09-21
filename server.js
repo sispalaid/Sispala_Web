@@ -709,6 +709,68 @@ app.get('/api/recordings/:cam', requireAdminOrSuperadmin, (req, res) => {
     res.json(sorted);
 });
 
+// --- API: Ambil Event Deteksi AI ---
+app.get('/api/events/:cam', requireAdminOrSuperadmin, (req, res) => {
+    const cam = req.params.cam;
+    const targetDate = req.query.date; // Format: YYYY-MM-DD
+    const roots = getRecordingRoots();
+    const events = [];
+    const fileSummaries = {};
+
+    roots.forEach((root) => {
+        if (root.isMounted) {
+            const dir = path.join(root.basePath, cam);
+            if (fs.existsSync(dir)) {
+                try {
+                    const files = fs.readdirSync(dir);
+                    files.forEach((file) => {
+                        if (file.endsWith('.json')) {
+                            // If targetDate provided, only inspect files starting with targetDate (e.g. 2026-09-21_...)
+                            if (targetDate && !file.startsWith(targetDate)) {
+                                return;
+                            }
+                            const filePath = path.join(dir, file);
+                            try {
+                                const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                                const videoName = content.video || file.replace('.json', '.mp4');
+                                if (content.summary) {
+                                    fileSummaries[videoName] = {
+                                        eventCount: content.eventCount || 0,
+                                        summary: content.summary || {}
+                                    };
+                                }
+                                if (Array.isArray(content.events)) {
+                                    content.events.forEach((ev) => {
+                                        events.push({
+                                            video: videoName,
+                                            sec: ev.sec,
+                                            categories: ev.categories || [],
+                                            classes: ev.classes || {},
+                                            conf: ev.conf || 0
+                                        });
+                                    });
+                                }
+                            } catch (parseErr) {
+                                // Skip invalid or corrupted json
+                            }
+                        }
+                    });
+                } catch (err) {
+                    console.error(`Gagal membaca events dari ${dir}:`, err.message);
+                }
+            }
+        }
+    });
+
+    res.json({
+        success: true,
+        cam,
+        date: targetDate || 'all',
+        events,
+        fileSummaries
+    });
+});
+
 const preferredMounts = ['/home/sispala/archive', '/mnt/ext'];
 let cachedStorageStats = null;
 let storageHistory = [];

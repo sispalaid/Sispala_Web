@@ -251,6 +251,8 @@
           <option value="10">10x</option>
         </select>
       </div>
+      <button class="btn-event-skip" onclick="jumpToPrevEvent()" title="Lompat ke deteksi sebelumnya">⏮ Prev Event</button>
+      <button class="btn-event-skip" onclick="jumpToNextEvent()" title="Lompat ke deteksi berikutnya">Next Event ⏭</button>
       <button class="btn-jump" onclick="openJumpModal()">Jump to Time</button>
       <span id="playing-now" style="font-size: 12px; color: var(--ink-2);">Pilih file untuk diputar</span>
     </div>
@@ -291,6 +293,15 @@
             <div class="nvr-playhead-badge" id="nvrPlayheadBadge">00:00:00</div>
           </div>
           <div class="nvr-hover-tooltip" id="nvrHoverTooltip">00:00:00</div>
+        </div>
+        <!-- Timeline Color Legend -->
+        <div class="nvr-legend-container">
+          <span class="nvr-legend-title">Legend:</span>
+          <span class="nvr-legend-item"><span class="nvr-legend-swatch" style="background: linear-gradient(180deg, var(--accent-1), var(--accent-1-dark));"></span> Continuous</span>
+          <span class="nvr-legend-item"><span class="nvr-legend-swatch" style="background: #ff9800;"></span> Person</span>
+          <span class="nvr-legend-item"><span class="nvr-legend-swatch" style="background: #00e676;"></span> Vehicle</span>
+          <span class="nvr-legend-item"><span class="nvr-legend-swatch" style="background: #b388ff;"></span> Animal</span>
+          <span class="nvr-legend-item"><span class="nvr-legend-swatch" style="background: linear-gradient(180deg, #ff9800 50%, #00e676 50%);"></span> Multi-Object</span>
         </div>
       </div>
     </div>
