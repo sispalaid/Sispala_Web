@@ -16,6 +16,7 @@ const streams = [
   let nvrFilesForDay = []; 
   let nvrDetectionEvents = [];
   let nvrFileSummaries = {};
+  let currentUserRole = null;
 
   const CATEGORY_COLORS = {
     person: '#ff9800',
@@ -319,6 +320,9 @@ async function loginAsGuest() {
 }
 
   async function fetchRecordings() {
+    if (currentUserRole !== 'admin' && currentUserRole !== 'superadmin') {
+      return;
+    }
     const cam = document.getElementById('camSelect').value;
     fileListDiv.innerHTML = '<div style="padding:10px;">Searching...</div>';
 
@@ -329,7 +333,15 @@ async function loginAsGuest() {
 
     try {
       const response = await fetch(`/api/recordings/${cam}`);
+      if (!response.ok) {
+        fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Gagal memuat rekaman.</div>';
+        return;
+      }
       const files = await response.json();
+      if (!Array.isArray(files)) {
+        fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Gagal memuat rekaman.</div>';
+        return;
+      }
       recordingsIndex = files
         .map((file) => ({ name: file, timestampMs: parseRecordingTimestamp(file) }))
         .filter((file) => file.timestampMs !== null);
@@ -1366,9 +1378,12 @@ async function actionDeleteAccount(username) {
 }
 
   async function fetchStorageStats() {
+    if (currentUserRole !== 'admin' && currentUserRole !== 'superadmin') {
+      return;
+    }
     try {
       const response = await fetch('/api/storage-stats');
-      if (!response.ok) throw new Error('Bad response');
+      if (!response.ok) return;
       const data = await response.json();
       storageEls.updated.textContent = `Updated: ${data.updatedAt}`;
       storageEls.bar.style.width = `${data.percentUsed || 0}%`;
@@ -1409,7 +1424,9 @@ async function actionDeleteAccount(username) {
         });
       }
     } catch (err) { storageEls.updated.textContent = 'Storage data unavailable'; }
-    fetchStorageCleanupLogs();
+    if (currentUserRole === 'superadmin') {
+      fetchStorageCleanupLogs();
+    }
   }
 
   // --- AUDIO LIBRARY CONSOLE SCRIPT ---
@@ -1747,6 +1764,7 @@ async function actionDeleteAccount(username) {
   }
 
   function applyPermissions(role) {
+      currentUserRole = role;
       document.getElementById('login-overlay').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
       
@@ -1777,6 +1795,8 @@ async function actionDeleteAccount(username) {
           if (systemLogsPanel) systemLogsPanel.style.display = 'none';
           if (cleanupBlock) cleanupBlock.style.display = 'none';
           toggleAutoRefreshLogs(false);
+          fetchRecordings();
+          fetchStorageStats();
       } else if (role === 'superadmin') {
           if (alarmContainer) alarmContainer.style.display = 'flex';
           if (playbackPanel) playbackPanel.style.display = 'block';
@@ -1784,6 +1804,8 @@ async function actionDeleteAccount(username) {
           if (superadminPanel) superadminPanel.style.display = 'block';
           if (systemLogsPanel) systemLogsPanel.style.display = 'block';
           if (cleanupBlock) cleanupBlock.style.display = 'block';
+          fetchRecordings();
+          fetchStorageStats();
           fetchSuperadminLogs();
           fetchSystemLogs();
           fetchStorageCleanupLogs();
@@ -1932,12 +1954,14 @@ async function actionDeleteAccount(username) {
   }
 
   window.onload = () => {
-    fetchRecordings();
-    fetchStorageStats();
-    setInterval(fetchStorageStats, 20000);
+    setInterval(() => {
+      if (currentUserRole === 'admin' || currentUserRole === 'superadmin') {
+        fetchStorageStats();
+      }
+    }, 20000);
     setInterval(() => {
       const panel = document.getElementById('superadmin-panel');
-      if (panel && panel.style.display !== 'none' && panel.offsetParent !== null && typeof fetchSuperadminLogs === 'function') {
+      if (currentUserRole === 'superadmin' && panel && panel.style.display !== 'none' && panel.offsetParent !== null && typeof fetchSuperadminLogs === 'function') {
         fetchSuperadminLogs();
       }
     }, 15000);

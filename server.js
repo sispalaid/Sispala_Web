@@ -858,7 +858,7 @@ function getRecordingRoots(forceRefresh = false) {
 
         roots.push({
             id: makeRootId(mountPoint),
-            label: mountPoint.startsWith('/mnt/') ? mountPoint.replace('/mnt/', 'mnt/') : (mountPoint.startsWith('/run/media/') ? mountPoint.replace('/run/media/', 'run/media/') : mountPoint),
+            label: mountPoint,
             basePath: mountPoint === '/home/sispala/archive' ? mountPoint : path.join(mountPoint, recordingsDirName),
             mountPoint,
             source: info ? info.source : 'unknown',
@@ -874,7 +874,7 @@ function getRecordingRoots(forceRefresh = false) {
             if (preferredMounts.includes(mount.mountPoint)) return;
             roots.push({
                 id: makeRootId(mount.mountPoint),
-                label: mount.mountPoint.replace('/mnt/', 'mnt/').replace('/media/', 'media/').replace('/run/media/', 'run/media/'),
+                label: mount.mountPoint,
                 basePath: path.join(mount.mountPoint, recordingsDirName),
                 mountPoint: mount.mountPoint,
                 source: mount.source,
