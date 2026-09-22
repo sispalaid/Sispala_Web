@@ -493,7 +493,6 @@ app.get('/api/users-list', (req, res) => {
 });
 
 // BARU: API untuk Mengambil Log Login/Logout (Hanya untuk Superadmin)
-// BARU: API untuk Mengambil Log Login/Logout (Hanya untuk Superadmin) dengan Pagination
 app.get('/api/logs', (req, res) => {
     if (!req.session.user || req.session.user.role !== 'superadmin') {
         return res.status(403).json({ success: false, message: 'Unauthorized: Hanya Superadmin yang dapat mengakses log.' });
@@ -508,19 +507,7 @@ app.get('/api/logs', (req, res) => {
         }
     }
     // Mengembalikan log terbalik agar aktivitas terbaru berada di paling atas
-    const reversed = logs.slice().reverse();
-    const page = parseInt(req.query.page);
-    const limit = parseInt(req.query.limit) || 20;
-
-    if (page && page > 0) {
-        const total = reversed.length;
-        const totalPages = Math.ceil(total / limit) || 1;
-        const start = (page - 1) * limit;
-        const pagedLogs = reversed.slice(start, start + limit);
-        return res.json({ success: true, logs: pagedLogs, totalPages, currentPage: page, total });
-    }
-
-    res.json({ success: true, logs: reversed });
+    res.json({ success: true, logs: logs.reverse() });
 });
 
 // Helper internal untuk memfilter baris log berdasarkan rentang tanggal sejak/sampai

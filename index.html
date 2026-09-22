@@ -89,30 +89,16 @@
   </div>
 </header>
 
-<nav class="app-tab-bar" id="appTabBar">
-  <button class="tab-btn active" id="tabBtn-live" onclick="switchAppTab('tab-live')">🎥 Live Monitor</button>
-  <button class="tab-btn" id="tabBtn-playback" onclick="switchAppTab('tab-playback')">📼 NVR Playback</button>
-  <button class="tab-btn" id="tabBtn-storage" onclick="switchAppTab('tab-storage')">💾 Storage & Health</button>
-  <button class="tab-btn" id="tabBtn-admin" onclick="switchAppTab('tab-admin')">⚙️ User & Audio</button>
-  <button class="tab-btn" id="tabBtn-logs" onclick="switchAppTab('tab-logs')">📋 System Logs</button>
-</nav>
+<div class="grid" id="video-grid"></div>
 
-<main class="tab-content-area">
-  <!-- TAB 1: LIVE MONITOR -->
-  <div id="tab-live" class="tab-pane active">
-    <div class="grid" id="video-grid"></div>
+<div class="mid-alarm-container" id="alarm-container" style="display: flex; gap: 15px; justify-content: center; align-items: center;">
+  <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM (CH 1)</button>
+  <button id="sirineToggle" class="btn-alarm" onclick="toggleSirine()">BUNYIKAN SIRINE (CH 2)</button>
+</div>
 
-    <div class="mid-alarm-container" id="alarm-container" style="display: flex; gap: 15px; justify-content: center; align-items: center;">
-      <button id="alarmToggle" class="btn-alarm" onclick="toggleAlarm()">BUNYIKAN ALARM (CH 1)</button>
-      <button id="sirineToggle" class="btn-alarm" onclick="toggleSirine()">BUNYIKAN SIRINE (CH 2)</button>
-    </div>
+<p id="alarm-status-msg" style="text-align: center; margin-top: 10px; font-weight: bold; min-height: 20px;"></p>
 
-    <p id="alarm-status-msg" style="text-align: center; margin-top: 10px; font-weight: bold; min-height: 20px;"></p>
-  </div>
-
-  <!-- TAB 2: NVR PLAYBACK -->
-  <div id="tab-playback" class="tab-pane">
-    <div class="playback-panel" id="playback-panel">
+<div class="playback-panel" id="playback-panel">
   <div class="playback-header">
     <h3 style="font-size: 15px; text-transform: uppercase; letter-spacing: 1.2px;">RECORDING PLAYBACK (NVR)</h3>
     <div class="playback-actions">
@@ -247,11 +233,8 @@
     </div>
   </div>
 </div>
-  </div>
 
-  <!-- TAB 3: STORAGE & HEALTH -->
-  <div id="tab-storage" class="tab-pane">
-    <div class="storage-panel" id="storage-panel">
+<div class="storage-panel" id="storage-panel">
   <div class="storage-header">
     <div class="storage-title">STORAGE PROJECTION</div>
     <div id="storage-updated" class="storage-updated">Waiting for data...</div>
@@ -281,11 +264,8 @@
     <div id="storage-cleanup-log-container" style="background: #090e18; border: 1px solid var(--stroke-1); border-radius: 12px; padding: 12px; max-height: 180px; overflow-y: auto; text-align: left; margin: 0; display: flex; flex-direction: column; gap: 8px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);"></div>
   </div>
 </div>
-  </div>
 
-  <!-- TAB 4: SUPERADMIN CONSOLE -->
-  <div id="tab-admin" class="tab-pane">
-    <div id="superadmin-panel" class="superadmin-panel" style="width: 100%; margin-top: 10px;">
+<div id="superadmin-panel" class="superadmin-panel" style="display: none; width: 100%; margin-top: 30px;">
   <h3 style="color: var(--accent-1); border-bottom: 1px solid var(--stroke-1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 14px;">🛠️ Superadmin Management Console</h3>
   
   <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; margin-top: 15px;">
@@ -352,11 +332,6 @@
             </tr>
           </tbody>
         </table>
-      </div>
-      <div class="table-pagination" id="activity-log-pagination">
-        <button id="btnPrevActivityLog" onclick="changeActivityLogPage(-1)" disabled>&laquo; Prev</button>
-        <span id="activityLogPageInfo">Page 1 of 1</span>
-        <button id="btnNextActivityLog" onclick="changeActivityLogPage(1)" disabled>Next &raquo;</button>
       </div>
     </div>
 
@@ -427,11 +402,8 @@
 
   </div>
 </div>
-  </div>
 
-  <!-- TAB 5: SYSTEM LOGS -->
-  <div id="tab-logs" class="tab-pane">
-    <div id="system-logs-panel" class="storage-panel" style="width: 100%; margin-top: 10px; margin-bottom: 20px;">
+<div id="system-logs-panel" class="storage-panel" style="display: none; margin-top: 30px; margin-bottom: 30px;">
   <div class="storage-header" style="flex-wrap: wrap; gap: 10px; border-bottom: 1px solid var(--stroke-1); padding-bottom: 12px; margin-bottom: 12px;">
     <div class="storage-title">System & Process Logs</div>
     <div class="playback-actions" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
@@ -470,8 +442,6 @@
   </div>
   <pre id="system-logs-content" style="background: #080c14; border: 1px solid var(--stroke-1); border-radius: 12px; padding: 14px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 11px; color: #a9b7c6; white-space: pre-wrap; word-break: break-all; text-align: left; margin: 0;"></pre>
 </div>
-  </div>
-</main>
 
 <div class="meta-panel">
   <div class="meta-section" style="border-bottom: 1px solid var(--stroke-2); padding-bottom: 15px;">

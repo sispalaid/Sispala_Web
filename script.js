@@ -380,74 +380,39 @@ async function loginAsGuest() {
 
       // Skip drawNVRTimeline() here — loadDetectionEvents() will call it after events load
 
-      // Render file list grouped by Hour Buckets (drops DOM nodes from 1440 to ~60)
+      // Render file list using DocumentFragment
       fileListDiv.innerHTML = '';
       if (playbackQueue.length === 0) {
         fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman untuk tanggal ini.</div>';
       } else {
-        const hourMap = {};
-        playbackQueue.forEach(file => {
-          const d = new Date(file.timestampMs);
-          const hour = d.getHours();
-          if (!hourMap[hour]) hourMap[hour] = [];
-          hourMap[hour].push(file);
-        });
-
-        const activeHour = selectedRecording ? new Date(selectedRecording.timestampMs).getHours() : Object.keys(hourMap)[0];
-
         const frag = document.createDocumentFragment();
-        Object.keys(hourMap).sort((a,b) => Number(a) - Number(b)).forEach(h => {
-          const filesInHour = hourMap[h];
-          const hStr = String(h).padStart(2, '0');
-          const groupDiv = document.createElement('div');
-          groupDiv.className = `hour-group ${Number(h) === Number(activeHour) ? 'open' : ''}`;
-          groupDiv.dataset.hour = h;
+        playbackQueue.forEach(file => {
+          const item = document.createElement('div');
+          item.className = 'file-item';
+          item.dataset.filename = file.name;
+          const date = new Date(file.timestampMs);
+          const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+          item.innerText = `📁 ${timeStr} - ${file.name}`;
 
-          const headerDiv = document.createElement('div');
-          headerDiv.className = 'hour-group-header';
-          headerDiv.innerHTML = `
-            <span>🕒 ${hStr}:00 - ${hStr}:59 <small style="color:var(--ink-2); font-weight:normal;">(${filesInHour.length} klip)</small></span>
-            <span class="toggle-icon">▶</span>
-          `;
-          headerDiv.onclick = () => {
-            groupDiv.classList.toggle('open');
-          };
-
-          const itemsDiv = document.createElement('div');
-          itemsDiv.className = 'hour-group-items';
-
-          filesInHour.forEach(file => {
-            const item = document.createElement('div');
-            item.className = 'file-item';
-            item.dataset.filename = file.name;
-            const date = new Date(file.timestampMs);
-            const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-            item.innerText = `📁 ${timeStr} - ${file.name}`;
-
-            const summaryObj = nvrFileSummaries[file.name];
-            if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
-              const badgeWrap = document.createElement('span');
-              badgeWrap.className = 'file-item-badge-wrap';
-              for (const [cat, count] of Object.entries(summaryObj.summary)) {
-                const badge = document.createElement('span');
-                badge.className = `file-item-badge badge-${cat}`;
-                badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
-                badgeWrap.appendChild(badge);
-              }
-              item.appendChild(badgeWrap);
+          const summaryObj = nvrFileSummaries[file.name];
+          if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
+            const badgeWrap = document.createElement('span');
+            badgeWrap.className = 'file-item-badge-wrap';
+            for (const [cat, count] of Object.entries(summaryObj.summary)) {
+              const badge = document.createElement('span');
+              badge.className = `file-item-badge badge-${cat}`;
+              badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
+              badgeWrap.appendChild(badge);
             }
+            item.appendChild(badgeWrap);
+          }
 
-            if (selectedRecording && selectedRecording.name === file.name) {
-              item.classList.add('selected');
-              currentSelectedFileEl = item;
-            }
-            item.onclick = () => selectRecording(cam, file.name, true);
-            itemsDiv.appendChild(item);
-          });
-
-          groupDiv.appendChild(headerDiv);
-          groupDiv.appendChild(itemsDiv);
-          frag.appendChild(groupDiv);
+          if (selectedRecording && selectedRecording.name === file.name) {
+            item.classList.add('selected');
+            currentSelectedFileEl = item;
+          }
+          item.onclick = () => selectRecording(cam, file.name, true);
+          frag.appendChild(item);
         });
 
         fileListDiv.appendChild(frag);
@@ -1202,10 +1167,6 @@ async function loginAsGuest() {
     if (target) {
       target.classList.add('selected');
       currentSelectedFileEl = target;
-      const parentGroup = target.closest('.hour-group');
-      if (parentGroup && !parentGroup.classList.contains('open')) {
-        parentGroup.classList.add('open');
-      }
       target.scrollIntoView({ behavior: smoothScroll ? 'smooth' : 'auto', block: 'nearest' });
     }
   }
@@ -1870,106 +1831,70 @@ async function actionDeleteAccount(username) {
     }
   }
 
-  let currentActiveTab = 'tab-live';
-  const tabLoadedState = {
-    'tab-playback': false,
-    'tab-storage': false,
-    'tab-admin': false,
-    'tab-logs': false
-  };
-
-  function switchAppTab(tabId) {
-    currentActiveTab = tabId;
-
-    // Update tab buttons active state
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      const match = btn.getAttribute('data-tab') === tabId || btn.id === `tabBtn-${tabId.replace('tab-', '')}`;
-      btn.classList.toggle('active', match);
-    });
-
-    // Update tab panes active state
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.toggle('active', pane.id === tabId);
-    });
-
-    // Smart Stream Lifecycle: Pause live streams when navigating away from Live Monitor
-    if (tabId === 'tab-live') {
-      resumeLiveStreamsAfterPlayback();
-    } else {
-      pauseLiveStreamsForPlayback();
-    }
-
-    // True On-Demand Data Loading
-    if (tabId === 'tab-playback') {
-      if (!tabLoadedState['tab-playback']) {
-        tabLoadedState['tab-playback'] = true;
-        fetchRecordings();
-      }
-    } else if (tabId === 'tab-storage') {
-      fetchStorageStats();
-      fetchStorageCleanupLogs();
-      tabLoadedState['tab-storage'] = true;
-    } else if (tabId === 'tab-admin') {
-      fetchSuperadminLogs(1);
-      updateUsernameSuggestions();
-      fetchAudioLibrary();
-      fetchAudioConfig();
-      tabLoadedState['tab-admin'] = true;
-    } else if (tabId === 'tab-logs') {
-      fetchSystemLogs();
-      tabLoadedState['tab-logs'] = true;
-    }
-  }
-  window.switchAppTab = switchAppTab;
-
   function applyPermissions(role) {
       currentUserRole = role;
       document.getElementById('login-overlay').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
+      
+      // Initialize video streams only after logging in
+      initializeStreams();
 
-      // Role-based Tab Button Visibility
-      const tabBtnPlayback = document.getElementById('tabBtn-playback');
-      const tabBtnStorage = document.getElementById('tabBtn-storage');
-      const tabBtnAdmin = document.getElementById('tabBtn-admin');
-      const tabBtnLogs = document.getElementById('tabBtn-logs');
+      const cleanupBlock = document.getElementById('auto-cleanup-block');
+      const superadminPanel = document.getElementById('superadmin-panel');
+      const systemLogsPanel = document.getElementById('system-logs-panel');
+      
       const alarmContainer = document.getElementById('alarm-container');
+      const playbackPanel = document.getElementById('playback-panel');
+      const storagePanel = document.getElementById('storage-panel');
 
       if (role === 'guest') {
           if (alarmContainer) alarmContainer.style.display = 'none';
-          if (tabBtnPlayback) tabBtnPlayback.style.display = 'none';
-          if (tabBtnStorage) tabBtnStorage.style.display = 'none';
-          if (tabBtnAdmin) tabBtnAdmin.style.display = 'none';
-          if (tabBtnLogs) tabBtnLogs.style.display = 'none';
+          if (playbackPanel) playbackPanel.style.display = 'none';
+          if (storagePanel) storagePanel.style.display = 'none';
+          if (superadminPanel) superadminPanel.style.display = 'none';
+          if (systemLogsPanel) systemLogsPanel.style.display = 'none';
+          if (cleanupBlock) cleanupBlock.style.display = 'none';
           toggleAutoRefreshLogs(false);
       } else if (role === 'admin') {
           if (alarmContainer) alarmContainer.style.display = 'flex';
-          if (tabBtnPlayback) tabBtnPlayback.style.display = 'inline-flex';
-          if (tabBtnStorage) tabBtnStorage.style.display = 'inline-flex';
-          if (tabBtnAdmin) tabBtnAdmin.style.display = 'none';
-          if (tabBtnLogs) tabBtnLogs.style.display = 'none';
+          if (playbackPanel) playbackPanel.style.display = 'block';
+          if (storagePanel) storagePanel.style.display = 'block';
+          if (superadminPanel) superadminPanel.style.display = 'none';
+          if (systemLogsPanel) systemLogsPanel.style.display = 'none';
+          if (cleanupBlock) cleanupBlock.style.display = 'none';
           toggleAutoRefreshLogs(false);
+          fetchRecordings();
+          fetchStorageStats();
       } else if (role === 'superadmin') {
           if (alarmContainer) alarmContainer.style.display = 'flex';
-          if (tabBtnPlayback) tabBtnPlayback.style.display = 'inline-flex';
-          if (tabBtnStorage) tabBtnStorage.style.display = 'inline-flex';
-          if (tabBtnAdmin) tabBtnAdmin.style.display = 'inline-flex';
-          if (tabBtnLogs) tabBtnLogs.style.display = 'inline-flex';
+          if (playbackPanel) playbackPanel.style.display = 'block';
+          if (storagePanel) storagePanel.style.display = 'block';
+          if (superadminPanel) superadminPanel.style.display = 'block';
+          if (systemLogsPanel) systemLogsPanel.style.display = 'block';
+          if (cleanupBlock) cleanupBlock.style.display = 'block';
+
+          // Load primary views immediately
+          fetchRecordings();
+          fetchStorageStats();
+
+          // Non-blocking staggered fetch for background logs to ensure zero main-thread freeze
+          setTimeout(() => {
+            fetchSuperadminLogs();
+            updateUsernameSuggestions();
+            fetchAudioLibrary();
+            fetchAudioConfig();
+          }, 60);
+
+          setTimeout(() => {
+            fetchSystemLogs();
+            fetchStorageCleanupLogs();
+          }, 150);
       }
-
-      // Default to Live Monitor tab with zero initial freeze
-      switchAppTab('tab-live');
-
-      // Initialize live streams with micro-stagger
-      initializeStreams();
   }
 
-  let currentActivityLogPage = 1;
-  let totalActivityLogPages = 1;
-
-  async function fetchSuperadminLogs(page = currentActivityLogPage) {
+  async function fetchSuperadminLogs() {
     try {
-        currentActivityLogPage = page;
-        const res = await fetch(`/api/logs?page=${page}&limit=20`);
+        const res = await fetch('/api/logs');
         const data = await res.json();
         const tbody = document.getElementById('log-table-body');
         if (!tbody) return;
@@ -1980,8 +1905,7 @@ async function actionDeleteAccount(username) {
                 return;
             }
             
-            const logsList = data.logs;
-            totalActivityLogPages = data.totalPages || 1;
+            const reversedLogs = data.logs;
             
             const actionBadgeMap = {
                 'LOGIN': 'badge-login',
@@ -2002,7 +1926,7 @@ async function actionDeleteAccount(username) {
             };
 
             // Single atomic pass: map array to HTML string (O(N) instead of O(N^2))
-            const rowsHtml = logsList.map(log => {
+            const rowsHtml = reversedLogs.map(log => {
                 const actionKey = (log.action || '').split(':')[0].trim();
                 const badgeClass = actionBadgeMap[actionKey] || 'badge-other';
                 return `
@@ -2015,14 +1939,6 @@ async function actionDeleteAccount(username) {
                 `;
             }).join('');
             tbody.innerHTML = rowsHtml;
-
-            // Update pagination controls
-            const pageInfo = document.getElementById('activityLogPageInfo');
-            const btnPrev = document.getElementById('btnPrevActivityLog');
-            const btnNext = document.getElementById('btnNextActivityLog');
-            if (pageInfo) pageInfo.textContent = `Page ${data.currentPage || page} of ${totalActivityLogPages}`;
-            if (btnPrev) btnPrev.disabled = (data.currentPage || page) <= 1;
-            if (btnNext) btnNext.disabled = (data.currentPage || page) >= totalActivityLogPages;
         } else {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Gagal memuat log data.</td></tr>';
         }
@@ -2031,15 +1947,6 @@ async function actionDeleteAccount(username) {
         if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Koneksi error.</td></tr>';
     }
   }
-  window.fetchSuperadminLogs = fetchSuperadminLogs;
-
-  function changeActivityLogPage(delta) {
-    const targetPage = currentActivityLogPage + delta;
-    if (targetPage >= 1 && targetPage <= totalActivityLogPages) {
-      fetchSuperadminLogs(targetPage);
-    }
-  }
-  window.changeActivityLogPage = changeActivityLogPage;
 
   async function createNewAccount() {
     const userEl = document.getElementById('new-username');
