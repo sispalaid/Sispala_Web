@@ -350,7 +350,7 @@ async function loginAsGuest() {
         selectedNVRDate = `${yyyy}-${mm}-${dd}`;
       }
 
-      // Render files and timeline immediately for instant UI response (~50ms)
+      // Filter files for selected date
       playbackQueue = recordingsIndex.filter(file => {
         const date = new Date(file.timestampMs);
         const yyyy = date.getFullYear();
@@ -359,41 +359,64 @@ async function loginAsGuest() {
         return `${yyyy}-${mm}-${dd}` === selectedNVRDate;
       });
 
-      drawNVRTimeline();
+      // Skip drawNVRTimeline() here — loadDetectionEvents() will call it after events load
 
+      // Render file list using DocumentFragment + chunked idle callbacks to avoid blocking main thread
       fileListDiv.innerHTML = '';
       if (playbackQueue.length === 0) {
         fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman untuk tanggal ini.</div>';
       } else {
-        playbackQueue.forEach(file => {
-          const item = document.createElement('div');
-          item.className = 'file-item';
-          item.dataset.filename = file.name;
-          
-          const date = new Date(file.timestampMs);
-          const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-          item.innerText = `📁 ${timeStr} - ${file.name}`;
-          
-          // Append detection badges if already available in memory
-          const summaryObj = nvrFileSummaries[file.name];
-          if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
-            const badgeWrap = document.createElement('span');
-            badgeWrap.className = 'file-item-badge-wrap';
-            for (const [cat, count] of Object.entries(summaryObj.summary)) {
-              const badge = document.createElement('span');
-              badge.className = `file-item-badge badge-${cat}`;
-              badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
-              badgeWrap.appendChild(badge);
+        const CHUNK_SIZE = 60;
+        let chunkIdx = 0;
+
+        const renderChunk = () => {
+          const frag = document.createDocumentFragment();
+          const end = Math.min(chunkIdx + CHUNK_SIZE, playbackQueue.length);
+          for (let i = chunkIdx; i < end; i++) {
+            const file = playbackQueue[i];
+            const item = document.createElement('div');
+            item.className = 'file-item';
+            item.dataset.filename = file.name;
+            
+            const date = new Date(file.timestampMs);
+            const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+            item.innerText = `📁 ${timeStr} - ${file.name}`;
+            
+            // Append detection badges if already available in memory
+            const summaryObj = nvrFileSummaries[file.name];
+            if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
+              const badgeWrap = document.createElement('span');
+              badgeWrap.className = 'file-item-badge-wrap';
+              for (const [cat, count] of Object.entries(summaryObj.summary)) {
+                const badge = document.createElement('span');
+                badge.className = `file-item-badge badge-${cat}`;
+                badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
+                badgeWrap.appendChild(badge);
+              }
+              item.appendChild(badgeWrap);
             }
-            item.appendChild(badgeWrap);
+            
+            if (selectedRecording && selectedRecording.name === file.name) {
+              item.classList.add('selected');
+            }
+            item.onclick = () => selectRecording(cam, file.name, true);
+            frag.appendChild(item);
           }
-          
-          if (selectedRecording && selectedRecording.name === file.name) {
-            item.classList.add('selected');
+          fileListDiv.appendChild(frag);
+          chunkIdx = end;
+
+          // Schedule next chunk if remaining, yielding to main thread
+          if (chunkIdx < playbackQueue.length) {
+            if (typeof requestIdleCallback === 'function') {
+              requestIdleCallback(renderChunk, { timeout: 80 });
+            } else {
+              setTimeout(renderChunk, 0);
+            }
           }
-          item.onclick = () => selectRecording(cam, file.name, true);
-          fileListDiv.appendChild(item);
-        });
+        };
+
+        // Render first chunk synchronously for instant visual feedback
+        renderChunk();
 
         if (!selectedRecording && playbackQueue.length > 0) {
           const firstFile = playbackQueue[0];
@@ -632,15 +655,6 @@ async function loginAsGuest() {
 
     // Single atomic mount pass
     track.replaceChildren(frag);
-
-    // Event delegation: single click listener for all markers (avoids N closures)
-    track.addEventListener('click', (e) => {
-      const marker = e.target.closest('.nvr-event-marker');
-      if (marker && marker.dataset.seekSec != null) {
-        e.stopPropagation();
-        seekToTimeOfDay(Number(marker.dataset.seekSec));
-      }
-    });
 
     const dateLabel = document.getElementById('nvr-timeline-date');
     if (dateLabel) {
@@ -2030,6 +2044,15 @@ async function actionDeleteAccount(username) {
     const track = document.getElementById('nvrTimelineTrack');
     if (timelineWrapper && track) {
       let hasDraggedFar = false;
+
+      // Event delegation for detection markers — registered ONCE, not per drawNVRTimeline() call
+      track.addEventListener('click', (e) => {
+        const marker = e.target.closest('.nvr-event-marker');
+        if (marker && marker.dataset.seekSec != null) {
+          e.stopPropagation();
+          seekToTimeOfDay(Number(marker.dataset.seekSec));
+        }
+      });
 
       // Helper: snapshot layout dimensions (avoids forced reflow during drag)
       function cacheTimelineDimensions() {

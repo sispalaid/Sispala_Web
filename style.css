@@ -780,7 +780,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
   contain: layout;
 }
 .playback-video-wrapper { flex: 2; min-width: 320px; }
-.playback-list-wrapper { flex: 1; min-width: 260px; }
+.playback-list-wrapper { flex: 1; min-width: 260px; min-height: 420px; contain: layout style; }
 
 select, .btn-refresh {
   background: var(--input-bg);
@@ -813,13 +813,14 @@ select:focus { outline: none; border-color: var(--accent-1); box-shadow: 0 0 0 3
   border-radius: 12px;
   padding: 8px;
   border: 1px solid var(--stroke-1);
+  contain: layout style;
 }
 .file-item {
   padding: 11px 12px;
   border-bottom: 1px solid var(--stroke-1);
   cursor: pointer;
   font-size: 12px;
-  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease;
+  transition: background 0.15s ease, color 0.15s ease, padding-left 0.12s ease;
   color: var(--ink-1);
   border-radius: 6px;
 }
@@ -827,7 +828,7 @@ select:focus { outline: none; border-color: var(--accent-1); box-shadow: 0 0 0 3
 .file-item:hover {
   background: var(--accent-1-soft);
   color: var(--accent-1-dark);
-  transform: translateX(2px);
+  padding-left: 14px;
 }
 .file-item.selected {
   background: var(--accent-1);
