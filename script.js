@@ -156,26 +156,45 @@ const streams = [
       if (streamsInitialized) return;
       streamsInitialized = true;
 
-      streams.forEach(stream => {
-        const video = document.getElementById(`video-${stream.id}`);
-        const url = `./Streams/cam${stream.id}/index.m3u8`;
-        if (Hls.isSupported()) {
-          const hls = new Hls({
-            lowLatencyMode: true,
-            liveSyncDuration: LIVE_DELAY_SEC,
-            liveMaxLatencyDuration: LIVE_DELAY_SEC + 3,
-            backBufferLength: 0,
-            maxLiveSyncPlaybackRate: 1.5
-          });
-          hls.loadSource(url);
-          hls.attachMedia(video);
-          hlsInstances.push(hls);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            video.play().catch(() => null);
-            applyLiveDelay(video);
-            setInterval(() => applyLiveDelay(video), 6000);
-          });
-        }
+      streams.forEach((stream, idx) => {
+        setTimeout(() => {
+          const video = document.getElementById(`video-${stream.id}`);
+          if (!video) return;
+          const url = `./Streams/cam${stream.id}/index.m3u8`;
+          if (Hls.isSupported()) {
+            const hls = new Hls({
+              lowLatencyMode: true,
+              liveSyncDuration: LIVE_DELAY_SEC,
+              liveMaxLatencyDuration: LIVE_DELAY_SEC + 3,
+              backBufferLength: 0,
+              maxLiveSyncPlaybackRate: 1.5,
+              manifestLoadingMaxRetry: 4,
+              manifestLoadingRetryDelay: 1000
+            });
+            hls.loadSource(url);
+            hls.attachMedia(video);
+            hlsInstances.push(hls);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+              video.play().catch(() => null);
+              applyLiveDelay(video);
+            });
+            hls.on(Hls.Events.ERROR, (event, data) => {
+              if (data.fatal) {
+                switch (data.type) {
+                  case Hls.ErrorTypes.NETWORK_ERROR:
+                    setTimeout(() => { try { hls.startLoad(); } catch (e) {} }, 3000);
+                    break;
+                  case Hls.ErrorTypes.MEDIA_ERROR:
+                    setTimeout(() => { try { hls.recoverMediaError(); } catch (e) {} }, 2000);
+                    break;
+                  default:
+                    try { hls.destroy(); } catch (e) {}
+                    break;
+                }
+              }
+            });
+          }
+        }, idx * 80);
       });
   }
 
@@ -361,28 +380,50 @@ async function loginAsGuest() {
 
       // Skip drawNVRTimeline() here — loadDetectionEvents() will call it after events load
 
-      // Render file list using DocumentFragment + chunked idle callbacks to avoid blocking main thread
+      // Render file list grouped by Hour Buckets (drops DOM nodes from 1440 to ~60)
       fileListDiv.innerHTML = '';
       if (playbackQueue.length === 0) {
         fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman untuk tanggal ini.</div>';
       } else {
-        const CHUNK_SIZE = 60;
-        let chunkIdx = 0;
+        const hourMap = {};
+        playbackQueue.forEach(file => {
+          const d = new Date(file.timestampMs);
+          const hour = d.getHours();
+          if (!hourMap[hour]) hourMap[hour] = [];
+          hourMap[hour].push(file);
+        });
 
-        const renderChunk = () => {
-          const frag = document.createDocumentFragment();
-          const end = Math.min(chunkIdx + CHUNK_SIZE, playbackQueue.length);
-          for (let i = chunkIdx; i < end; i++) {
-            const file = playbackQueue[i];
+        const activeHour = selectedRecording ? new Date(selectedRecording.timestampMs).getHours() : Object.keys(hourMap)[0];
+
+        const frag = document.createDocumentFragment();
+        Object.keys(hourMap).sort((a,b) => Number(a) - Number(b)).forEach(h => {
+          const filesInHour = hourMap[h];
+          const hStr = String(h).padStart(2, '0');
+          const groupDiv = document.createElement('div');
+          groupDiv.className = `hour-group ${Number(h) === Number(activeHour) ? 'open' : ''}`;
+          groupDiv.dataset.hour = h;
+
+          const headerDiv = document.createElement('div');
+          headerDiv.className = 'hour-group-header';
+          headerDiv.innerHTML = `
+            <span>🕒 ${hStr}:00 - ${hStr}:59 <small style="color:var(--ink-2); font-weight:normal;">(${filesInHour.length} klip)</small></span>
+            <span class="toggle-icon">▶</span>
+          `;
+          headerDiv.onclick = () => {
+            groupDiv.classList.toggle('open');
+          };
+
+          const itemsDiv = document.createElement('div');
+          itemsDiv.className = 'hour-group-items';
+
+          filesInHour.forEach(file => {
             const item = document.createElement('div');
             item.className = 'file-item';
             item.dataset.filename = file.name;
-            
             const date = new Date(file.timestampMs);
             const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
             item.innerText = `📁 ${timeStr} - ${file.name}`;
-            
-            // Append detection badges if already available in memory
+
             const summaryObj = nvrFileSummaries[file.name];
             if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
               const badgeWrap = document.createElement('span');
@@ -395,34 +436,27 @@ async function loginAsGuest() {
               }
               item.appendChild(badgeWrap);
             }
-            
+
             if (selectedRecording && selectedRecording.name === file.name) {
               item.classList.add('selected');
+              currentSelectedFileEl = item;
             }
             item.onclick = () => selectRecording(cam, file.name, true);
-            frag.appendChild(item);
-          }
-          fileListDiv.appendChild(frag);
-          chunkIdx = end;
+            itemsDiv.appendChild(item);
+          });
 
-          // Schedule next chunk if remaining, yielding to main thread
-          if (chunkIdx < playbackQueue.length) {
-            if (typeof requestIdleCallback === 'function') {
-              requestIdleCallback(renderChunk, { timeout: 80 });
-            } else {
-              setTimeout(renderChunk, 0);
-            }
-          }
-        };
+          groupDiv.appendChild(headerDiv);
+          groupDiv.appendChild(itemsDiv);
+          frag.appendChild(groupDiv);
+        });
 
-        // Render first chunk synchronously for instant visual feedback
-        renderChunk();
+        fileListDiv.appendChild(frag);
 
         if (!selectedRecording && playbackQueue.length > 0) {
           const firstFile = playbackQueue[0];
           selectedRecording = { cam, name: firstFile.name, timestampMs: firstFile.timestampMs };
           playbackIndex = 0;
-          updateSelectedUI(firstFile.name);
+          updateSelectedUI(firstFile.name, false);
           playingNowSpan.innerText = `Ready: ${cam} - ${firstFile.name}`;
           playingNowSpan.style.color = '#9fd9ff';
         }
@@ -1158,13 +1192,21 @@ async function loginAsGuest() {
     confirmJumpTime();
   }
 
-  function updateSelectedUI(filename) {
-    const items = fileListDiv.querySelectorAll('.file-item');
-    items.forEach((item) => item.classList.remove('selected'));
+  let currentSelectedFileEl = null;
+
+  function updateSelectedUI(filename, smoothScroll = false) {
     const target = fileListDiv.querySelector(`[data-filename="${filename}"]`);
+    if (currentSelectedFileEl && currentSelectedFileEl !== target) {
+      currentSelectedFileEl.classList.remove('selected');
+    }
     if (target) {
       target.classList.add('selected');
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      currentSelectedFileEl = target;
+      const parentGroup = target.closest('.hour-group');
+      if (parentGroup && !parentGroup.classList.contains('open')) {
+        parentGroup.classList.add('open');
+      }
+      target.scrollIntoView({ behavior: smoothScroll ? 'smooth' : 'auto', block: 'nearest' });
     }
   }
 
@@ -1492,9 +1534,6 @@ async function actionDeleteAccount(username) {
         });
       }
     } catch (err) { storageEls.updated.textContent = 'Storage data unavailable'; }
-    if (currentUserRole === 'superadmin') {
-      fetchStorageCleanupLogs();
-    }
   }
 
   // --- AUDIO LIBRARY CONSOLE SCRIPT ---
@@ -1831,76 +1870,119 @@ async function actionDeleteAccount(username) {
     }
   }
 
+  let currentActiveTab = 'tab-live';
+  const tabLoadedState = {
+    'tab-playback': false,
+    'tab-storage': false,
+    'tab-admin': false,
+    'tab-logs': false
+  };
+
+  function switchAppTab(tabId) {
+    currentActiveTab = tabId;
+
+    // Update tab buttons active state
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      const match = btn.getAttribute('data-tab') === tabId || btn.id === `tabBtn-${tabId.replace('tab-', '')}`;
+      btn.classList.toggle('active', match);
+    });
+
+    // Update tab panes active state
+    document.querySelectorAll('.tab-pane').forEach(pane => {
+      pane.classList.toggle('active', pane.id === tabId);
+    });
+
+    // Smart Stream Lifecycle: Pause live streams when navigating away from Live Monitor
+    if (tabId === 'tab-live') {
+      resumeLiveStreamsAfterPlayback();
+    } else {
+      pauseLiveStreamsForPlayback();
+    }
+
+    // True On-Demand Data Loading
+    if (tabId === 'tab-playback') {
+      if (!tabLoadedState['tab-playback']) {
+        tabLoadedState['tab-playback'] = true;
+        fetchRecordings();
+      }
+    } else if (tabId === 'tab-storage') {
+      fetchStorageStats();
+      fetchStorageCleanupLogs();
+      tabLoadedState['tab-storage'] = true;
+    } else if (tabId === 'tab-admin') {
+      fetchSuperadminLogs(1);
+      updateUsernameSuggestions();
+      fetchAudioLibrary();
+      fetchAudioConfig();
+      tabLoadedState['tab-admin'] = true;
+    } else if (tabId === 'tab-logs') {
+      fetchSystemLogs();
+      tabLoadedState['tab-logs'] = true;
+    }
+  }
+  window.switchAppTab = switchAppTab;
+
   function applyPermissions(role) {
       currentUserRole = role;
       document.getElementById('login-overlay').style.display = 'none';
       document.getElementById('main-content').style.display = 'block';
-      
-      // Initialize video streams only after logging in
-      initializeStreams();
 
-      const cleanupBlock = document.getElementById('auto-cleanup-block');
-      const superadminPanel = document.getElementById('superadmin-panel');
-      const systemLogsPanel = document.getElementById('system-logs-panel');
-      
+      // Role-based Tab Button Visibility
+      const tabBtnPlayback = document.getElementById('tabBtn-playback');
+      const tabBtnStorage = document.getElementById('tabBtn-storage');
+      const tabBtnAdmin = document.getElementById('tabBtn-admin');
+      const tabBtnLogs = document.getElementById('tabBtn-logs');
       const alarmContainer = document.getElementById('alarm-container');
-      const playbackPanel = document.getElementById('playback-panel');
-      const storagePanel = document.getElementById('storage-panel');
 
       if (role === 'guest') {
           if (alarmContainer) alarmContainer.style.display = 'none';
-          if (playbackPanel) playbackPanel.style.display = 'none';
-          if (storagePanel) storagePanel.style.display = 'none';
-          if (superadminPanel) superadminPanel.style.display = 'none';
-          if (systemLogsPanel) systemLogsPanel.style.display = 'none';
-          if (cleanupBlock) cleanupBlock.style.display = 'none';
+          if (tabBtnPlayback) tabBtnPlayback.style.display = 'none';
+          if (tabBtnStorage) tabBtnStorage.style.display = 'none';
+          if (tabBtnAdmin) tabBtnAdmin.style.display = 'none';
+          if (tabBtnLogs) tabBtnLogs.style.display = 'none';
           toggleAutoRefreshLogs(false);
       } else if (role === 'admin') {
           if (alarmContainer) alarmContainer.style.display = 'flex';
-          if (playbackPanel) playbackPanel.style.display = 'block';
-          if (storagePanel) storagePanel.style.display = 'block';
-          if (superadminPanel) superadminPanel.style.display = 'none';
-          if (systemLogsPanel) systemLogsPanel.style.display = 'none';
-          if (cleanupBlock) cleanupBlock.style.display = 'none';
+          if (tabBtnPlayback) tabBtnPlayback.style.display = 'inline-flex';
+          if (tabBtnStorage) tabBtnStorage.style.display = 'inline-flex';
+          if (tabBtnAdmin) tabBtnAdmin.style.display = 'none';
+          if (tabBtnLogs) tabBtnLogs.style.display = 'none';
           toggleAutoRefreshLogs(false);
-          fetchRecordings();
-          fetchStorageStats();
       } else if (role === 'superadmin') {
           if (alarmContainer) alarmContainer.style.display = 'flex';
-          if (playbackPanel) playbackPanel.style.display = 'block';
-          if (storagePanel) storagePanel.style.display = 'block';
-          if (superadminPanel) superadminPanel.style.display = 'block';
-          if (systemLogsPanel) systemLogsPanel.style.display = 'block';
-          if (cleanupBlock) cleanupBlock.style.display = 'block';
-          fetchRecordings();
-          fetchStorageStats();
-          fetchSuperadminLogs();
-          fetchSystemLogs();
-          fetchStorageCleanupLogs();
-          updateUsernameSuggestions();
-          fetchAudioLibrary();
-          fetchAudioConfig();
+          if (tabBtnPlayback) tabBtnPlayback.style.display = 'inline-flex';
+          if (tabBtnStorage) tabBtnStorage.style.display = 'inline-flex';
+          if (tabBtnAdmin) tabBtnAdmin.style.display = 'inline-flex';
+          if (tabBtnLogs) tabBtnLogs.style.display = 'inline-flex';
       }
+
+      // Default to Live Monitor tab with zero initial freeze
+      switchAppTab('tab-live');
+
+      // Initialize live streams with micro-stagger
+      initializeStreams();
   }
 
-  async function fetchSuperadminLogs() {
+  let currentActivityLogPage = 1;
+  let totalActivityLogPages = 1;
+
+  async function fetchSuperadminLogs(page = currentActivityLogPage) {
     try {
-        const res = await fetch('/api/logs');
+        currentActivityLogPage = page;
+        const res = await fetch(`/api/logs?page=${page}&limit=20`);
         const data = await res.json();
         const tbody = document.getElementById('log-table-body');
+        if (!tbody) return;
         
         if (data.success && Array.isArray(data.logs)) {
-            tbody.innerHTML = '';
-            
             if (data.logs.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#aaa;">Belum ada log aktivitas.</td></tr>';
                 return;
             }
             
-            // PERUBAHAN DI SINI: Membalik urutan array agar data terbaru menjadi yang paling pertama
-            const reversedLogs = data.logs.reverse();
+            const logsList = data.logs;
+            totalActivityLogPages = data.totalPages || 1;
             
-            // Sekarang kita lakukan perulangan dari data yang sudah dibalik
             const actionBadgeMap = {
                 'LOGIN': 'badge-login',
                 'LOGOUT': 'badge-logout',
@@ -1919,25 +2001,45 @@ async function actionDeleteAccount(username) {
                 'DELETE_ACCOUNT': 'badge-delete'
             };
 
-            reversedLogs.forEach(log => {
-                const actionKey = log.action.split(':')[0].trim();
+            // Single atomic pass: map array to HTML string (O(N) instead of O(N^2))
+            const rowsHtml = logsList.map(log => {
+                const actionKey = (log.action || '').split(':')[0].trim();
                 const badgeClass = actionBadgeMap[actionKey] || 'badge-other';
-                tbody.innerHTML += `
+                return `
                     <tr>
-                        <td style="color:#aaa">${log.timestamp}</td>
-                        <td style="font-weight:600; color:#fff">${log.username}</td>
-                        <td><span style="color:var(--accent-2)">${log.role}</span></td>
-                        <td><span class="${badgeClass}">${log.action}</span></td>
+                        <td style="color:#aaa">${log.timestamp || '-'}</td>
+                        <td style="font-weight:600; color:#fff">${log.username || '-'}</td>
+                        <td><span style="color:var(--accent-2)">${log.role || '-'}</span></td>
+                        <td><span class="${badgeClass}">${log.action || '-'}</span></td>
                     </tr>
                 `;
-            });
+            }).join('');
+            tbody.innerHTML = rowsHtml;
+
+            // Update pagination controls
+            const pageInfo = document.getElementById('activityLogPageInfo');
+            const btnPrev = document.getElementById('btnPrevActivityLog');
+            const btnNext = document.getElementById('btnNextActivityLog');
+            if (pageInfo) pageInfo.textContent = `Page ${data.currentPage || page} of ${totalActivityLogPages}`;
+            if (btnPrev) btnPrev.disabled = (data.currentPage || page) <= 1;
+            if (btnNext) btnNext.disabled = (data.currentPage || page) >= totalActivityLogPages;
         } else {
-            document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Gagal memuat log data.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Gagal memuat log data.</td></tr>';
         }
     } catch (err) {
-        document.getElementById('log-table-body').innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Koneksi error.</td></tr>';
+        const tbody = document.getElementById('log-table-body');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Koneksi error.</td></tr>';
     }
-}
+  }
+  window.fetchSuperadminLogs = fetchSuperadminLogs;
+
+  function changeActivityLogPage(delta) {
+    const targetPage = currentActivityLogPage + delta;
+    if (targetPage >= 1 && targetPage <= totalActivityLogPages) {
+      fetchSuperadminLogs(targetPage);
+    }
+  }
+  window.changeActivityLogPage = changeActivityLogPage;
 
   async function createNewAccount() {
     const userEl = document.getElementById('new-username');

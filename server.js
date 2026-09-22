@@ -493,6 +493,7 @@ app.get('/api/users-list', (req, res) => {
 });
 
 // BARU: API untuk Mengambil Log Login/Logout (Hanya untuk Superadmin)
+// BARU: API untuk Mengambil Log Login/Logout (Hanya untuk Superadmin) dengan Pagination
 app.get('/api/logs', (req, res) => {
     if (!req.session.user || req.session.user.role !== 'superadmin') {
         return res.status(403).json({ success: false, message: 'Unauthorized: Hanya Superadmin yang dapat mengakses log.' });
@@ -507,7 +508,19 @@ app.get('/api/logs', (req, res) => {
         }
     }
     // Mengembalikan log terbalik agar aktivitas terbaru berada di paling atas
-    res.json({ success: true, logs: logs.reverse() });
+    const reversed = logs.slice().reverse();
+    const page = parseInt(req.query.page);
+    const limit = parseInt(req.query.limit) || 20;
+
+    if (page && page > 0) {
+        const total = reversed.length;
+        const totalPages = Math.ceil(total / limit) || 1;
+        const start = (page - 1) * limit;
+        const pagedLogs = reversed.slice(start, start + limit);
+        return res.json({ success: true, logs: pagedLogs, totalPages, currentPage: page, total });
+    }
+
+    res.json({ success: true, logs: reversed });
 });
 
 // Helper internal untuk memfilter baris log berdasarkan rentang tanggal sejak/sampai
@@ -670,8 +683,10 @@ app.get('/api/cleanup-log', requireSuperadmin, (req, res) => {
 });
 
 // --- API: Ambil Daftar Rekaman ---
+// --- API: Ambil Daftar Rekaman dengan Server-side Date Filter & Batched Stats ---
 app.get('/api/recordings/:cam', requireAdminOrSuperadmin, async (req, res) => {
     const cam = req.params.cam;
+    const targetDate = req.query.date; // Format YYYY-MM-DD (opsional)
     const roots = getRecordingRoots();
     const validFiles = new Set();
     const now = Date.now();
@@ -681,22 +696,28 @@ app.get('/api/recordings/:cam', requireAdminOrSuperadmin, async (req, res) => {
             const dir = path.join(root.basePath, cam);
             try {
                 const files = await fs.promises.readdir(dir);
-                for (const file of files) {
-                    if (file.endsWith('.mp4')) {
+                // Filter tanggal sebelum melakukan disk stat
+                const candidateFiles = files.filter(f => {
+                    if (!f.endsWith('.mp4')) return false;
+                    if (targetDate && !f.startsWith(targetDate)) return false;
+                    return true;
+                });
+
+                // Batching stat calls secara paralel (maks 25 per batch) untuk menghindari I/O blocking
+                const BATCH_SIZE = 25;
+                for (let i = 0; i < candidateFiles.length; i += BATCH_SIZE) {
+                    const batch = candidateFiles.slice(i, i + BATCH_SIZE);
+                    await Promise.all(batch.map(async (file) => {
                         const filePath = path.join(dir, file);
                         try {
                             const stat = await fs.promises.stat(filePath);
                             // Filter 1: Ignore empty or truncated fragments (< 200 KB)
-                            if (stat.size < 200 * 1024) {
-                                continue;
-                            }
                             // Filter 2: Ignore actively recorded segment in progress (< 65 seconds since last modified)
-                            if (now - stat.mtimeMs < 65000) {
-                                continue;
+                            if (stat.size >= 200 * 1024 && (now - stat.mtimeMs >= 65000)) {
+                                validFiles.add(file);
                             }
-                            validFiles.add(file);
                         } catch (e) {}
-                    }
+                    }));
                 }
             } catch (err) {
                 console.error(`Gagal membaca rekaman dari ${dir}:`, err.message);
