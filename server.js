@@ -709,66 +709,96 @@ app.get('/api/recordings/:cam', requireAdminOrSuperadmin, (req, res) => {
     res.json(sorted);
 });
 
+// In-memory cache for AI detection events (key: `${cam}_${date}`, TTL: 60s)
+const eventsCache = new Map();
+const EVENTS_CACHE_TTL_MS = 60000;
+
 // --- API: Ambil Event Deteksi AI ---
-app.get('/api/events/:cam', requireAdminOrSuperadmin, (req, res) => {
+app.get('/api/events/:cam', requireAdminOrSuperadmin, async (req, res) => {
     const cam = req.params.cam;
     const targetDate = req.query.date; // Format: YYYY-MM-DD
+    const cacheKey = `${cam}_${targetDate || 'all'}`;
+    const now = Date.now();
+
+    if (eventsCache.has(cacheKey)) {
+        const cached = eventsCache.get(cacheKey);
+        if (now < cached.expiresAt) {
+            return res.json(cached.data);
+        }
+    }
+
     const roots = getRecordingRoots();
     const events = [];
     const fileSummaries = {};
 
-    roots.forEach((root) => {
-        if (root.isMounted) {
-            const dir = path.join(root.basePath, cam);
-            if (fs.existsSync(dir)) {
+    try {
+        for (const root of roots) {
+            if (root.isMounted) {
+                const dir = path.join(root.basePath, cam);
                 try {
-                    const files = fs.readdirSync(dir);
-                    files.forEach((file) => {
-                        if (file.endsWith('.json')) {
-                            // If targetDate provided, only inspect files starting with targetDate (e.g. 2026-09-21_...)
-                            if (targetDate && !file.startsWith(targetDate)) {
-                                return;
+                    await fs.promises.access(dir);
+                } catch {
+                    continue;
+                }
+
+                try {
+                    const files = await fs.promises.readdir(dir);
+                    const jsonFiles = files.filter(f => f.endsWith('.json') && (!targetDate || f.startsWith(targetDate)));
+                    
+                    // Read json files concurrently in non-blocking fashion
+                    await Promise.all(jsonFiles.map(async (file) => {
+                        const filePath = path.join(dir, file);
+                        try {
+                            const raw = await fs.promises.readFile(filePath, 'utf8');
+                            const content = JSON.parse(raw);
+                            const videoName = content.video || file.replace('.json', '.mp4');
+                            if (content.summary) {
+                                fileSummaries[videoName] = {
+                                    eventCount: content.eventCount || 0,
+                                    summary: content.summary || {}
+                                };
                             }
-                            const filePath = path.join(dir, file);
-                            try {
-                                const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-                                const videoName = content.video || file.replace('.json', '.mp4');
-                                if (content.summary) {
-                                    fileSummaries[videoName] = {
-                                        eventCount: content.eventCount || 0,
-                                        summary: content.summary || {}
-                                    };
-                                }
-                                if (Array.isArray(content.events)) {
-                                    content.events.forEach((ev) => {
-                                        events.push({
-                                            video: videoName,
-                                            sec: ev.sec,
-                                            categories: ev.categories || [],
-                                            classes: ev.classes || {},
-                                            conf: ev.conf || 0
-                                        });
+                            if (Array.isArray(content.events)) {
+                                content.events.forEach((ev) => {
+                                    events.push({
+                                        video: videoName,
+                                        sec: ev.sec,
+                                        categories: ev.categories || [],
+                                        classes: ev.classes || {},
+                                        conf: ev.conf || 0
                                     });
-                                }
-                            } catch (parseErr) {
-                                // Skip invalid or corrupted json
+                                });
                             }
+                        } catch (parseErr) {
+                            // Skip invalid or corrupted json
                         }
-                    });
+                    }));
                 } catch (err) {
                     console.error(`Gagal membaca events dari ${dir}:`, err.message);
                 }
             }
         }
-    });
 
-    res.json({
-        success: true,
-        cam,
-        date: targetDate || 'all',
-        events,
-        fileSummaries
-    });
+        const responsePayload = {
+            success: true,
+            cam,
+            date: targetDate || 'all',
+            events,
+            fileSummaries
+        };
+
+        // Cache response with LRU limit of 50 entries
+        if (eventsCache.size > 50) {
+            const oldestKey = eventsCache.keys().next().value;
+            eventsCache.delete(oldestKey);
+        }
+        eventsCache.set(cacheKey, { expiresAt: Date.now() + EVENTS_CACHE_TTL_MS, data: responsePayload });
+
+        res.json(responsePayload);
+    } catch (routeErr) {
+        console.error('Error in /api/events:', routeErr);
+        res.status(500).json({ success: false, error: routeErr.message });
+    }
 });
 
 const preferredMounts = ['/home/sispala/archive', '/mnt/ext'];

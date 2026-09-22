@@ -364,35 +364,7 @@ async function loginAsGuest() {
         selectedNVRDate = `${yyyy}-${mm}-${dd}`;
       }
 
-      // Fetch AI detection events for the active date and camera
-      try {
-        const evRes = await fetch(`/api/events/${cam}?date=${selectedNVRDate}`);
-        const evData = await evRes.json();
-        if (evData && evData.success) {
-          nvrFileSummaries = evData.fileSummaries || {};
-          nvrDetectionEvents = (evData.events || []).map(ev => {
-            const fileObj = recordingsIndex.find(f => f.name === ev.video);
-            let secondsFromMidnight = 0;
-            if (fileObj) {
-              const d = new Date(fileObj.timestampMs);
-              secondsFromMidnight = d.getHours() * 3600 + d.getMinutes() * 60 + (ev.sec || 0);
-            }
-            return {
-              ...ev,
-              secondsFromMidnight
-            };
-          });
-          nvrDetectionEvents.sort((a, b) => a.secondsFromMidnight - b.secondsFromMidnight);
-        } else {
-          nvrFileSummaries = {};
-          nvrDetectionEvents = [];
-        }
-      } catch (err) {
-        console.warn('Gagal memuat data event deteksi:', err);
-        nvrFileSummaries = {};
-        nvrDetectionEvents = [];
-      }
-
+      // Render files and timeline immediately for instant UI response (~50ms)
       playbackQueue = recordingsIndex.filter(file => {
         const date = new Date(file.timestampMs);
         const yyyy = date.getFullYear();
@@ -406,20 +378,95 @@ async function loginAsGuest() {
       fileListDiv.innerHTML = '';
       if (playbackQueue.length === 0) {
         fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Tidak ada rekaman untuk tanggal ini.</div>';
-        return;
+      } else {
+        playbackQueue.forEach(file => {
+          const item = document.createElement('div');
+          item.className = 'file-item';
+          item.dataset.filename = file.name;
+          
+          const date = new Date(file.timestampMs);
+          const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+          item.innerText = `📁 ${timeStr} - ${file.name}`;
+          
+          // Append detection badges if already available in memory
+          const summaryObj = nvrFileSummaries[file.name];
+          if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
+            const badgeWrap = document.createElement('span');
+            badgeWrap.className = 'file-item-badge-wrap';
+            for (const [cat, count] of Object.entries(summaryObj.summary)) {
+              const badge = document.createElement('span');
+              badge.className = `file-item-badge badge-${cat}`;
+              badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
+              badgeWrap.appendChild(badge);
+            }
+            item.appendChild(badgeWrap);
+          }
+          
+          if (selectedRecording && selectedRecording.name === file.name) {
+            item.classList.add('selected');
+          }
+          item.onclick = () => selectRecording(cam, file.name, true);
+          fileListDiv.appendChild(item);
+        });
+
+        if (!selectedRecording && playbackQueue.length > 0) {
+          const firstFile = playbackQueue[0];
+          selectedRecording = { cam, name: firstFile.name, timestampMs: firstFile.timestampMs };
+          playbackIndex = 0;
+          updateSelectedUI(firstFile.name);
+          playingNowSpan.innerText = `Ready: ${cam} - ${firstFile.name}`;
+          playingNowSpan.style.color = '#9fd9ff';
+        }
       }
 
-      playbackQueue.forEach(file => {
-        const item = document.createElement('div');
-        item.className = 'file-item';
-        item.dataset.filename = file.name;
-        
-        const date = new Date(file.timestampMs);
-        const timeStr = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-        item.innerText = `📁 ${timeStr} - ${file.name}`;
-        
-        // Append detection badges if events exist for this file
-        const summaryObj = nvrFileSummaries[file.name];
+      // Fetch AI detection events asynchronously in background without blocking UI
+      loadDetectionEvents(cam, selectedNVRDate);
+    } catch (err) {
+      console.error(err);
+      fileListDiv.innerHTML = '<div style="padding:10px; color:red;">Gagal memuat rekaman.</div>';
+    }
+  }
+
+  // Helper: Asynchronously fetch and render detection events
+  async function loadDetectionEvents(cam, targetDate) {
+    if (!targetDate) return;
+    try {
+      const evRes = await fetch(`/api/events/${cam}?date=${targetDate}`);
+      const evData = await evRes.json();
+      const currentCam = document.getElementById('camSelect').value;
+      if (currentCam !== cam || selectedNVRDate !== targetDate) return;
+
+      if (evData && evData.success) {
+        nvrFileSummaries = evData.fileSummaries || {};
+        nvrDetectionEvents = (evData.events || []).map(ev => {
+          const fileObj = recordingsIndex.find(f => f.name === ev.video);
+          let secondsFromMidnight = 0;
+          if (fileObj) {
+            const d = new Date(fileObj.timestampMs);
+            secondsFromMidnight = d.getHours() * 3600 + d.getMinutes() * 60 + (ev.sec || 0);
+          }
+          return {
+            ...ev,
+            secondsFromMidnight
+          };
+        });
+        nvrDetectionEvents.sort((a, b) => a.secondsFromMidnight - b.secondsFromMidnight);
+      } else {
+        nvrFileSummaries = {};
+        nvrDetectionEvents = [];
+      }
+
+      // Update timeline markers
+      drawNVRTimeline();
+
+      // Update badges on existing file items in place
+      const items = fileListDiv.querySelectorAll('.file-item');
+      items.forEach(item => {
+        const fname = item.dataset.filename;
+        const summaryObj = nvrFileSummaries[fname];
+        const oldWrap = item.querySelector('.file-item-badge-wrap');
+        if (oldWrap) oldWrap.remove();
+
         if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
           const badgeWrap = document.createElement('span');
           badgeWrap.className = 'file-item-badge-wrap';
@@ -431,25 +478,9 @@ async function loginAsGuest() {
           }
           item.appendChild(badgeWrap);
         }
-        
-        if (selectedRecording && selectedRecording.name === file.name) {
-          item.classList.add('selected');
-        }
-        item.onclick = () => selectRecording(cam, file.name, true);
-        fileListDiv.appendChild(item);
       });
-
-      if (!selectedRecording && playbackQueue.length > 0) {
-        const firstFile = playbackQueue[0];
-        selectedRecording = { cam, name: firstFile.name, timestampMs: firstFile.timestampMs };
-        playbackIndex = 0;
-        updateSelectedUI(firstFile.name);
-        playingNowSpan.innerText = `Ready: ${cam} - ${firstFile.name}`;
-        playingNowSpan.style.color = '#9fd9ff';
-      }
     } catch (err) {
-      console.error(err);
-      fileListDiv.innerHTML = '<div style="padding:10px; color:red;">Gagal memuat rekaman.</div>';
+      console.warn('Gagal memuat data event deteksi:', err);
     }
   }
 
@@ -814,12 +845,16 @@ async function loginAsGuest() {
     return new Date(year, month, day, hour, minute).getTime();
   }
 
-  async function openJumpModal() {
-    await fetchRecordings();
+  function openJumpModal() {
     const modal = document.getElementById('jump-modal');
     if (modal) modal.style.display = 'flex';
     initCalendar();
     initClock();
+    if (!recordingsIndex || recordingsIndex.length === 0) {
+      fetchRecordings().then(() => {
+        initCalendar();
+      });
+    }
   }
 
   function filterUserTable() {
