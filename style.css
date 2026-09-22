@@ -777,6 +777,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
 .playback-container {
   display: flex; gap: 22px; flex-wrap: wrap;
+  contain: layout;
 }
 .playback-video-wrapper { flex: 2; min-width: 320px; }
 .playback-list-wrapper { flex: 1; min-width: 260px; }
@@ -1573,6 +1574,7 @@ label {
   cursor: grab;
   overflow: visible;
   margin-top: 26px;
+  contain: layout;
 }
 .nvr-timeline-wrapper:active {
   cursor: grabbing;
@@ -1603,6 +1605,7 @@ label {
   color: var(--ink-2);
   transform: translateX(-50%);
   padding-bottom: 4px;
+  contain: layout;
 }
 [data-theme="light"] .nvr-tick {
   border-left-color: rgba(0, 0, 0, 0.12);
@@ -1678,6 +1681,7 @@ label {
 .nvr-hover-tooltip {
   position: absolute;
   top: -26px;
+  left: 0;
   transform: translateX(-50%);
   background: rgba(15, 23, 42, 0.95);
   color: var(--accent-1-light);
@@ -1692,6 +1696,8 @@ label {
   display: none;
   z-index: 24;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  contain: layout paint;
+  will-change: transform;
 }
 
 

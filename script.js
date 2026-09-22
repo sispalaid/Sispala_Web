@@ -543,17 +543,16 @@ async function loginAsGuest() {
     const trackWidth = getTrackWidth(viewportWidth);
     track.style.width = `${trackWidth}px`;
 
-    track.innerHTML = '';
+    const frag = document.createDocumentFragment();
 
-    // Calculate dynamic tick intervals based on zoom level
+    // Calculate dynamic tick intervals based on zoom level (capped at minimum 5m to avoid creating 1440 DOM nodes)
     let stepMinutes = 15;
     if (timelineWindowHours >= 24) stepMinutes = 120;
     else if (timelineWindowHours >= 12) stepMinutes = 60;
     else if (timelineWindowHours >= 6) stepMinutes = 30;
     else if (timelineWindowHours >= 2) stepMinutes = 15;
-    else if (timelineWindowHours >= 1) stepMinutes = 5;
-    else if (timelineWindowHours >= 0.5) stepMinutes = 2;
-    else stepMinutes = 1;
+    else if (timelineWindowHours >= 1) stepMinutes = 10;
+    else stepMinutes = 5; // Minimum 5 mins (max 288 ticks across 24h instead of 1,440)
 
     for (let totalMinutes = 0; totalMinutes < 1440; totalMinutes += stepMinutes) {
       const h = Math.floor(totalMinutes / 60);
@@ -562,72 +561,93 @@ async function loginAsGuest() {
       tick.className = 'nvr-tick';
       tick.style.left = `${(totalMinutes / 1440) * 100}%`;
       tick.innerHTML = `<span>${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}</span>`;
-      track.appendChild(tick);
+      frag.appendChild(tick);
     }
     // Final 24:00 tick
     const tick24 = document.createElement('div');
     tick24.className = 'nvr-tick';
     tick24.style.left = `100%`;
     tick24.innerHTML = `<span>24:00</span>`;
-    track.appendChild(tick24);
+    frag.appendChild(tick24);
 
-    if (!selectedNVRDate) {
-      const dateLabel = document.getElementById('nvr-timeline-date');
-      if (dateLabel) dateLabel.textContent = 'Footage: -';
-      return;
+    if (selectedNVRDate && playbackQueue.length > 0) {
+      // Merge contiguous 1-minute recording files into continuous time spans
+      // This drops DOM element count from ~1,440 down to just 1 to 5 blocks
+      const mergedSpans = [];
+      let currentSpan = null;
+
+      playbackQueue.forEach(file => {
+        const fileDate = new Date(file.timestampMs);
+        const startSec = fileDate.getHours() * 3600 + fileDate.getMinutes() * 60;
+        const endSec = startSec + 60; // 1 minute segment
+
+        if (!currentSpan) {
+          currentSpan = { startSec, endSec, count: 1 };
+        } else if (startSec <= currentSpan.endSec + 10) { // Contiguous or minor jitter <= 10s
+          currentSpan.endSec = Math.max(currentSpan.endSec, endSec);
+          currentSpan.count++;
+        } else {
+          mergedSpans.push(currentSpan);
+          currentSpan = { startSec, endSec, count: 1 };
+        }
+      });
+      if (currentSpan) mergedSpans.push(currentSpan);
+
+      mergedSpans.forEach(span => {
+        const leftPx = (span.startSec / 86400) * trackWidth;
+        const widthPx = Math.max(((span.endSec - span.startSec) / 86400) * trackWidth, 3);
+
+        const block = document.createElement('div');
+        block.className = 'nvr-record-block';
+        block.style.left = `${leftPx}px`;
+        block.style.width = `${widthPx}px`;
+        
+        const startH = Math.floor(span.startSec / 3600);
+        const startM = Math.floor((span.startSec % 3600) / 60);
+        const endH = Math.floor(span.endSec / 3600);
+        const endM = Math.floor((span.endSec % 3600) / 60);
+        block.title = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')} - ${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')} (${span.count} clips)`;
+        
+        frag.appendChild(block);
+      });
+
+      // Render AI Detection Event Markers on top of the timeline track
+      nvrDetectionEvents.forEach(ev => {
+        const leftPx = (ev.secondsFromMidnight / 86400) * trackWidth;
+        const widthPx = Math.max((1 / 86400) * trackWidth, 3); // Minimum 3px visible width
+
+        const marker = document.createElement('div');
+        marker.className = 'nvr-event-marker';
+        marker.style.left = `${leftPx}px`;
+        marker.style.width = `${widthPx}px`;
+        marker.style.background = getMultiCategoryGradient(ev.categories);
+
+        const hours = Math.floor(ev.secondsFromMidnight / 3600);
+        const mins = Math.floor((ev.secondsFromMidnight % 3600) / 60);
+        const secs = ev.secondsFromMidnight % 60;
+        const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+        const classList = Object.entries(ev.classes || {})
+          .map(([cls, conf]) => `${CATEGORY_ICONS[cls] || '⚡'} ${cls} (${Math.round(conf * 100)}%)`)
+          .join(' · ');
+
+        marker.title = `🔔 [${timeStr}] ${classList || (ev.categories || []).join(', ')} (Klik untuk memutar)`;
+
+        marker.onclick = (e) => {
+          e.stopPropagation();
+          seekToTimeOfDay(ev.secondsFromMidnight);
+        };
+
+        frag.appendChild(marker);
+      });
     }
 
-    playbackQueue.forEach(file => {
-      const fileDate = new Date(file.timestampMs);
-      const secondsFromMidnight = fileDate.getHours() * 3600 + fileDate.getMinutes() * 60;
-      
-      const leftPx = (secondsFromMidnight / 86400) * trackWidth;
-      const widthPx = (60 / 86400) * trackWidth; // 1 minute segment size
-
-      const block = document.createElement('div');
-      block.className = 'nvr-record-block';
-      block.style.left = `${leftPx}px`;
-      block.style.width = `${Math.max(widthPx, 2)}px`; // Keep it visible even if tiny
-      
-      const timeLabel = `${String(fileDate.getHours()).padStart(2, '0')}:${String(fileDate.getMinutes()).padStart(2, '0')}`;
-      block.title = `${timeLabel} - ${file.name}`;
-      
-      track.appendChild(block);
-    });
-
-    // Render AI Detection Event Markers on top of the timeline track
-    nvrDetectionEvents.forEach(ev => {
-      const leftPx = (ev.secondsFromMidnight / 86400) * trackWidth;
-      const widthPx = Math.max((1 / 86400) * trackWidth, 3); // Minimum 3px visible width
-
-      const marker = document.createElement('div');
-      marker.className = 'nvr-event-marker';
-      marker.style.left = `${leftPx}px`;
-      marker.style.width = `${widthPx}px`;
-      marker.style.background = getMultiCategoryGradient(ev.categories);
-
-      const hours = Math.floor(ev.secondsFromMidnight / 3600);
-      const mins = Math.floor((ev.secondsFromMidnight % 3600) / 60);
-      const secs = ev.secondsFromMidnight % 60;
-      const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-
-      const classList = Object.entries(ev.classes || {})
-        .map(([cls, conf]) => `${CATEGORY_ICONS[cls] || '⚡'} ${cls} (${Math.round(conf * 100)}%)`)
-        .join(' · ');
-
-      marker.title = `🔔 [${timeStr}] ${classList || (ev.categories || []).join(', ')} (Klik untuk memutar)`;
-
-      marker.onclick = (e) => {
-        e.stopPropagation();
-        seekToTimeOfDay(ev.secondsFromMidnight);
-      };
-
-      track.appendChild(marker);
-    });
+    // Single atomic mount pass
+    track.replaceChildren(frag);
 
     const dateLabel = document.getElementById('nvr-timeline-date');
     if (dateLabel) {
-      dateLabel.textContent = `Footage: ${selectedNVRDate}`;
+      dateLabel.textContent = selectedNVRDate ? `Footage: ${selectedNVRDate}` : 'Footage: -';
     }
 
     // Sync track scroll position to current video playback time
@@ -2110,26 +2130,32 @@ async function actionDeleteAccount(username) {
         }
       });
 
-      // Mouse wheel zoom support on timeline
+      // Mouse wheel zoom support on timeline with RAF throttling
+      let wheelRafId = null;
       timelineWrapper.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const zoomLevels = [24, 12, 6, 2, 1, 0.5, 0.16666];
-        let currentIdx = zoomLevels.findIndex(z => Math.abs(z - timelineWindowHours) < 0.05);
-        if (currentIdx === -1) currentIdx = 4; // default 1h
-        if (e.deltaY < 0) {
-          // Wheel up: Zoom in
-          if (currentIdx < zoomLevels.length - 1) {
-            setTimelineWindow(zoomLevels[currentIdx + 1]);
+        if (wheelRafId) return;
+        const delta = e.deltaY;
+        wheelRafId = requestAnimationFrame(() => {
+          wheelRafId = null;
+          const zoomLevels = [24, 12, 6, 2, 1, 0.5, 0.16666];
+          let currentIdx = zoomLevels.findIndex(z => Math.abs(z - timelineWindowHours) < 0.05);
+          if (currentIdx === -1) currentIdx = 4; // default 1h
+          if (delta < 0) {
+            // Wheel up: Zoom in
+            if (currentIdx < zoomLevels.length - 1) {
+              setTimelineWindow(zoomLevels[currentIdx + 1]);
+            }
+          } else {
+            // Wheel down: Zoom out
+            if (currentIdx > 0) {
+              setTimelineWindow(zoomLevels[currentIdx - 1]);
+            }
           }
-        } else {
-          // Wheel down: Zoom out
-          if (currentIdx > 0) {
-            setTimelineWindow(zoomLevels[currentIdx - 1]);
-          }
-        }
+        });
       }, { passive: false });
 
-      // Hover Tooltip logic for mouse pointer on timeline
+      // Hover Tooltip logic for mouse pointer on timeline (GPU accelerated transform)
       const hoverTooltip = document.getElementById('nvrHoverTooltip');
       if (hoverTooltip) {
         timelineWrapper.addEventListener('mousemove', (e) => {
@@ -2149,7 +2175,7 @@ async function actionDeleteAccount(username) {
           const mm = Math.floor((hoverSeconds % 3600) / 60);
           const ss = Math.floor(hoverSeconds % 60);
 
-          hoverTooltip.style.left = `${mouseX}px`;
+          hoverTooltip.style.transform = `translate3d(${mouseX}px, 0, 0) translateX(-50%)`;
           hoverTooltip.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
           hoverTooltip.style.display = 'block';
         });
