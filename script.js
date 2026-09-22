@@ -446,19 +446,78 @@ async function loginAsGuest() {
 
       if (evData && evData.success) {
         nvrFileSummaries = evData.fileSummaries || {};
-        nvrDetectionEvents = (evData.events || []).map(ev => {
-          const fileObj = recordingsIndex.find(f => f.name === ev.video);
-          let secondsFromMidnight = 0;
-          if (fileObj) {
-            const d = new Date(fileObj.timestampMs);
-            secondsFromMidnight = d.getHours() * 3600 + d.getMinutes() * 60 + (ev.sec || 0);
-          }
-          return {
-            ...ev,
-            secondsFromMidnight
-          };
+
+        // Fast O(1) timestamp lookup map: filename -> secondsFromMidnight
+        const fileTimeMap = new Map();
+        recordingsIndex.forEach(f => {
+          const d = new Date(f.timestampMs);
+          fileTimeMap.set(f.name, d.getHours() * 3600 + d.getMinutes() * 60);
         });
-        nvrDetectionEvents.sort((a, b) => a.secondsFromMidnight - b.secondsFromMidnight);
+
+        // Fast single-pass map with O(1) lookups
+        const rawEvents = [];
+        const rawList = evData.events || [];
+        for (let i = 0; i < rawList.length; i++) {
+          const ev = rawList[i];
+          const baseSec = fileTimeMap.get(ev.video);
+          if (baseSec !== undefined) {
+            rawEvents.push({
+              ...ev,
+              secondsFromMidnight: baseSec + (ev.sec || 0)
+            });
+          }
+        }
+
+        rawEvents.sort((a, b) => a.secondsFromMidnight - b.secondsFromMidnight);
+
+        // Merge contiguous events (gap <= 5s) into event spans
+        // This drops DOM element count from ~10,000+ down to ~30-100 real incident spans
+        const mergedEventSpans = [];
+        let currentEventSpan = null;
+
+        for (let i = 0; i < rawEvents.length; i++) {
+          const ev = rawEvents[i];
+          const evSec = ev.secondsFromMidnight;
+          if (!currentEventSpan) {
+            currentEventSpan = {
+              startSec: evSec,
+              endSec: evSec + 1,
+              secondsFromMidnight: evSec,
+              categories: new Set(ev.categories || []),
+              classes: { ...(ev.classes || {}) },
+              count: 1
+            };
+          } else if (evSec <= currentEventSpan.endSec + 5) {
+            currentEventSpan.endSec = Math.max(currentEventSpan.endSec, evSec + 1);
+            currentEventSpan.count++;
+            (ev.categories || []).forEach(c => currentEventSpan.categories.add(c));
+            for (const [cls, conf] of Object.entries(ev.classes || {})) {
+              currentEventSpan.classes[cls] = Math.max(currentEventSpan.classes[cls] || 0, conf);
+            }
+          } else {
+            mergedEventSpans.push({
+              ...currentEventSpan,
+              categories: Array.from(currentEventSpan.categories)
+            });
+            currentEventSpan = {
+              startSec: evSec,
+              endSec: evSec + 1,
+              secondsFromMidnight: evSec,
+              categories: new Set(ev.categories || []),
+              classes: { ...(ev.classes || {}) },
+              count: 1
+            };
+          }
+        }
+
+        if (currentEventSpan) {
+          mergedEventSpans.push({
+            ...currentEventSpan,
+            categories: Array.from(currentEventSpan.categories)
+          });
+        }
+
+        nvrDetectionEvents = mergedEventSpans;
       } else {
         nvrFileSummaries = {};
         nvrDetectionEvents = [];
@@ -467,15 +526,11 @@ async function loginAsGuest() {
       // Update timeline markers
       drawNVRTimeline();
 
-      // Update badges on existing file items in place
-      const items = fileListDiv.querySelectorAll('.file-item');
-      items.forEach(item => {
-        const fname = item.dataset.filename;
-        const summaryObj = nvrFileSummaries[fname];
-        const oldWrap = item.querySelector('.file-item-badge-wrap');
-        if (oldWrap) oldWrap.remove();
-
-        if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
+      // Only update file items that actually have summaries (avoids scanning 1,440 DOM nodes)
+      for (const [fname, summaryObj] of Object.entries(nvrFileSummaries)) {
+        if (!summaryObj || !summaryObj.summary || Object.keys(summaryObj.summary).length === 0) continue;
+        const item = fileListDiv.querySelector(`[data-filename="${fname}"]`);
+        if (item && !item.querySelector('.file-item-badge-wrap')) {
           const badgeWrap = document.createElement('span');
           badgeWrap.className = 'file-item-badge-wrap';
           for (const [cat, count] of Object.entries(summaryObj.summary)) {
@@ -486,7 +541,7 @@ async function loginAsGuest() {
           }
           item.appendChild(badgeWrap);
         }
-      });
+      }
     } catch (err) {
       console.warn('Gagal memuat data event deteksi:', err);
     }
@@ -534,9 +589,8 @@ async function loginAsGuest() {
     const track = document.getElementById('nvrTimelineTrack');
     if (!timelineWrapper || !track) return;
     
-    const viewportWidth = timelineWrapper.clientWidth;
-    const trackWidth = getTrackWidth(viewportWidth);
-    track.style.width = `${trackWidth}px`;
+    const viewportWidth = _cachedViewportW || timelineWrapper.clientWidth;
+    const trackWidth = _cachedTrackW || getTrackWidth(viewportWidth);
 
     const pct = seconds / 86400;
     const targetX = pct * trackWidth;
@@ -555,6 +609,8 @@ async function loginAsGuest() {
 
     const viewportWidth = timelineWrapper.clientWidth;
     const trackWidth = getTrackWidth(viewportWidth);
+    _cachedViewportW = viewportWidth;
+    _cachedTrackW = trackWidth;
     track.style.width = `${trackWidth}px`;
 
     const frag = document.createDocumentFragment();
@@ -625,28 +681,32 @@ async function loginAsGuest() {
         frag.appendChild(block);
       });
 
-      // Render AI Detection Event Markers (data-attribute + event delegation, no per-marker closure)
-      nvrDetectionEvents.forEach(ev => {
-        const leftPx = (ev.secondsFromMidnight / 86400) * trackWidth;
-        const widthPx = Math.max((1 / 86400) * trackWidth, 3); // Minimum 3px visible width
+      // Render AI Detection Event Markers as merged spans (drops 10,000+ DOM nodes down to ~50 spans)
+      nvrDetectionEvents.forEach(span => {
+        const leftPx = (span.startSec / 86400) * trackWidth;
+        const widthPx = Math.max(((span.endSec - span.startSec) / 86400) * trackWidth, 4); // Minimum 4px visible width
 
         const marker = document.createElement('div');
         marker.className = 'nvr-event-marker';
         marker.style.left = `${leftPx}px`;
         marker.style.width = `${widthPx}px`;
-        marker.style.background = getMultiCategoryGradient(ev.categories);
-        marker.dataset.seekSec = ev.secondsFromMidnight;
+        marker.style.background = getMultiCategoryGradient(span.categories);
+        marker.dataset.seekSec = span.startSec;
 
-        const hours = Math.floor(ev.secondsFromMidnight / 3600);
-        const mins = Math.floor((ev.secondsFromMidnight % 3600) / 60);
-        const secs = ev.secondsFromMidnight % 60;
-        const timeStr = `${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        const startH = Math.floor(span.startSec / 3600);
+        const startM = Math.floor((span.startSec % 3600) / 60);
+        const startS = span.startSec % 60;
+        const endH = Math.floor(span.endSec / 3600);
+        const endM = Math.floor((span.endSec % 3600) / 60);
+        const endS = span.endSec % 60;
 
-        const classList = Object.entries(ev.classes || {})
+        const timeStr = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}:${String(startS).padStart(2, '0')} - ${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:${String(endS).padStart(2, '0')}`;
+
+        const classList = Object.entries(span.classes || {})
           .map(([cls, conf]) => `${CATEGORY_ICONS[cls] || '⚡'} ${cls} (${Math.round(conf * 100)}%)`)
           .join(' · ');
 
-        marker.title = `🔔 [${timeStr}] ${classList || (ev.categories || []).join(', ')} (Klik untuk memutar)`;
+        marker.title = `🔔 [${timeStr}] ${classList || (span.categories || []).join(', ')} (${span.count} deteksi - Klik untuk memutar)`;
 
         frag.appendChild(marker);
       });
@@ -1863,8 +1923,10 @@ async function actionDeleteAccount(username) {
           if (systemLogsPanel) systemLogsPanel.style.display = 'none';
           if (cleanupBlock) cleanupBlock.style.display = 'none';
           toggleAutoRefreshLogs(false);
-          fetchRecordings();
-          fetchStorageStats();
+          setTimeout(() => {
+            fetchRecordings();
+            fetchStorageStats();
+          }, 30);
       } else if (role === 'superadmin') {
           if (alarmContainer) alarmContainer.style.display = 'flex';
           if (playbackPanel) playbackPanel.style.display = 'block';
@@ -1873,22 +1935,23 @@ async function actionDeleteAccount(username) {
           if (systemLogsPanel) systemLogsPanel.style.display = 'block';
           if (cleanupBlock) cleanupBlock.style.display = 'block';
 
-          // Load primary views immediately
-          fetchRecordings();
-          fetchStorageStats();
+          // Micro-stagger primary and secondary views to allow login DOM transition to paint with 0ms input delay
+          setTimeout(() => {
+            fetchRecordings();
+            fetchStorageStats();
+          }, 30);
 
-          // Non-blocking staggered fetch for background logs to ensure zero main-thread freeze
           setTimeout(() => {
             fetchSuperadminLogs();
             updateUsernameSuggestions();
             fetchAudioLibrary();
             fetchAudioConfig();
-          }, 60);
+          }, 80);
 
           setTimeout(() => {
             fetchSystemLogs();
             fetchStorageCleanupLogs();
-          }, 150);
+          }, 180);
       }
   }
 
@@ -2069,6 +2132,11 @@ async function actionDeleteAccount(username) {
         _cachedTrackW = getTrackWidth(_cachedViewportW);
         _cachedWrapperRect = timelineWrapper.getBoundingClientRect();
       }
+
+      window.addEventListener('resize', () => {
+        cacheTimelineDimensions();
+        if (track) track.style.width = `${_cachedTrackW}px`;
+      });
 
       timelineWrapper.addEventListener('mousedown', (e) => {
         isDraggingTimeline = true;
