@@ -479,6 +479,12 @@ async function loginAsGuest() {
   let isPendingSeek = false;
   let pendingSeekTargetMs = 0;
   let timelineWindowHours = 1; // Default 1 hour across viewport
+  // Cached layout values to avoid forced reflow during drag/hover
+  let _cachedViewportW = 0;
+  let _cachedTrackW = 0;
+  let _cachedWrapperRect = null;
+  let _playheadRafId = null;
+  let _dragRafId = null;
 
   function getTrackWidth(viewportWidth) {
     return Math.max(viewportWidth, viewportWidth * (24 / timelineWindowHours));
@@ -597,7 +603,7 @@ async function loginAsGuest() {
         frag.appendChild(block);
       });
 
-      // Render AI Detection Event Markers on top of the timeline track
+      // Render AI Detection Event Markers (data-attribute + event delegation, no per-marker closure)
       nvrDetectionEvents.forEach(ev => {
         const leftPx = (ev.secondsFromMidnight / 86400) * trackWidth;
         const widthPx = Math.max((1 / 86400) * trackWidth, 3); // Minimum 3px visible width
@@ -607,6 +613,7 @@ async function loginAsGuest() {
         marker.style.left = `${leftPx}px`;
         marker.style.width = `${widthPx}px`;
         marker.style.background = getMultiCategoryGradient(ev.categories);
+        marker.dataset.seekSec = ev.secondsFromMidnight;
 
         const hours = Math.floor(ev.secondsFromMidnight / 3600);
         const mins = Math.floor((ev.secondsFromMidnight % 3600) / 60);
@@ -619,17 +626,21 @@ async function loginAsGuest() {
 
         marker.title = `🔔 [${timeStr}] ${classList || (ev.categories || []).join(', ')} (Klik untuk memutar)`;
 
-        marker.onclick = (e) => {
-          e.stopPropagation();
-          seekToTimeOfDay(ev.secondsFromMidnight);
-        };
-
         frag.appendChild(marker);
       });
     }
 
     // Single atomic mount pass
     track.replaceChildren(frag);
+
+    // Event delegation: single click listener for all markers (avoids N closures)
+    track.addEventListener('click', (e) => {
+      const marker = e.target.closest('.nvr-event-marker');
+      if (marker && marker.dataset.seekSec != null) {
+        e.stopPropagation();
+        seekToTimeOfDay(Number(marker.dataset.seekSec));
+      }
+    });
 
     const dateLabel = document.getElementById('nvr-timeline-date');
     if (dateLabel) {
@@ -2020,12 +2031,20 @@ async function actionDeleteAccount(username) {
     if (timelineWrapper && track) {
       let hasDraggedFar = false;
 
+      // Helper: snapshot layout dimensions (avoids forced reflow during drag)
+      function cacheTimelineDimensions() {
+        _cachedViewportW = timelineWrapper.clientWidth;
+        _cachedTrackW = getTrackWidth(_cachedViewportW);
+        _cachedWrapperRect = timelineWrapper.getBoundingClientRect();
+      }
+
       timelineWrapper.addEventListener('mousedown', (e) => {
         isDraggingTimeline = true;
         hasDraggedFar = false;
         track.style.transition = 'none';
         dragStartX = e.clientX;
         dragStartTrackX = currentTrackX;
+        cacheTimelineDimensions();
         e.preventDefault();
       });
 
@@ -2035,22 +2054,29 @@ async function actionDeleteAccount(username) {
         if (Math.abs(dx) > 3) hasDraggedFar = true;
         let newX = dragStartTrackX + dx;
         
-        const viewportWidth = timelineWrapper.clientWidth;
-        const trackWidth = getTrackWidth(viewportWidth);
-        newX = Math.max(viewportWidth / 2 - trackWidth, Math.min(viewportWidth / 2, newX));
+        // Use cached dimensions — no forced reflow
+        const vw = _cachedViewportW;
+        const tw = _cachedTrackW;
+        newX = Math.max(vw / 2 - tw, Math.min(vw / 2, newX));
         
         currentTrackX = newX;
-        track.style.transform = `translateX(${newX}px)`;
 
-        const pct = (viewportWidth / 2 - newX) / trackWidth;
+        const pct = (vw / 2 - newX) / tw;
         draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
 
-        const hh = Math.floor(draggedTimeSeconds / 3600);
-        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
-        const ss = Math.floor(draggedTimeSeconds % 60);
-        const badge = document.getElementById('nvrPlayheadBadge');
-        if (badge) {
-          badge.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        // RAF-batch the DOM writes (transform + badge text)
+        if (!_dragRafId) {
+          _dragRafId = requestAnimationFrame(() => {
+            _dragRafId = null;
+            track.style.transform = `translateX(${currentTrackX}px)`;
+            const hh = Math.floor(draggedTimeSeconds / 3600);
+            const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
+            const ss = Math.floor(draggedTimeSeconds % 60);
+            const badge = document.getElementById('nvrPlayheadBadge');
+            if (badge) {
+              badge.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+            }
+          });
         }
       });
 
@@ -2065,6 +2091,7 @@ async function actionDeleteAccount(username) {
 
       timelineWrapper.addEventListener('click', (e) => {
         if (hasDraggedFar || !selectedNVRDate) return;
+        // Snapshot rect only on click (infrequent event)
         const rect = timelineWrapper.getBoundingClientRect();
         const mouseX = e.clientX - rect.left;
         const viewportWidth = timelineWrapper.clientWidth;
@@ -2082,6 +2109,7 @@ async function actionDeleteAccount(username) {
         track.style.transition = 'none';
         dragStartX = e.touches[0].clientX;
         dragStartTrackX = currentTrackX;
+        cacheTimelineDimensions();
       });
 
       timelineWrapper.addEventListener('touchmove', (e) => {
@@ -2090,22 +2118,29 @@ async function actionDeleteAccount(username) {
         if (Math.abs(dx) > 3) hasDraggedFar = true;
         let newX = dragStartTrackX + dx;
         
-        const viewportWidth = timelineWrapper.clientWidth;
-        const trackWidth = getTrackWidth(viewportWidth);
-        newX = Math.max(viewportWidth / 2 - trackWidth, Math.min(viewportWidth / 2, newX));
+        // Use cached dimensions — no forced reflow
+        const vw = _cachedViewportW;
+        const tw = _cachedTrackW;
+        newX = Math.max(vw / 2 - tw, Math.min(vw / 2, newX));
         
         currentTrackX = newX;
-        track.style.transform = `translateX(${newX}px)`;
 
-        const pct = (viewportWidth / 2 - newX) / trackWidth;
+        const pct = (vw / 2 - newX) / tw;
         draggedTimeSeconds = Math.max(0, Math.min(86399, pct * 86400));
 
-        const hh = Math.floor(draggedTimeSeconds / 3600);
-        const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
-        const ss = Math.floor(draggedTimeSeconds % 60);
-        const badge = document.getElementById('nvrPlayheadBadge');
-        if (badge) {
-          badge.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+        // RAF-batch the DOM writes
+        if (!_dragRafId) {
+          _dragRafId = requestAnimationFrame(() => {
+            _dragRafId = null;
+            track.style.transform = `translateX(${currentTrackX}px)`;
+            const hh = Math.floor(draggedTimeSeconds / 3600);
+            const mm = Math.floor((draggedTimeSeconds % 3600) / 60);
+            const ss = Math.floor(draggedTimeSeconds % 60);
+            const badge = document.getElementById('nvrPlayheadBadge');
+            if (badge) {
+              badge.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+            }
+          });
         }
       }, { passive: true });
 
@@ -2143,29 +2178,41 @@ async function actionDeleteAccount(username) {
         });
       }, { passive: false });
 
-      // Hover Tooltip logic for mouse pointer on timeline (GPU accelerated transform)
+      // Hover Tooltip — uses cached rect, RAF-batched DOM writes
       const hoverTooltip = document.getElementById('nvrHoverTooltip');
+      let _tooltipRafId = null;
       if (hoverTooltip) {
+        timelineWrapper.addEventListener('mouseenter', () => {
+          // Snapshot rect once on enter (not on every mousemove)
+          _cachedWrapperRect = timelineWrapper.getBoundingClientRect();
+          _cachedViewportW = timelineWrapper.clientWidth;
+          _cachedTrackW = getTrackWidth(_cachedViewportW);
+        });
+
         timelineWrapper.addEventListener('mousemove', (e) => {
           if (isDraggingTimeline) {
             hoverTooltip.style.display = 'none';
             return;
           }
-          const rect = timelineWrapper.getBoundingClientRect();
-          const mouseX = e.clientX - rect.left;
-          const viewportWidth = timelineWrapper.clientWidth;
-          const trackWidth = getTrackWidth(viewportWidth);
+          const mouseX = e.clientX - (_cachedWrapperRect ? _cachedWrapperRect.left : 0);
+          const vw = _cachedViewportW || timelineWrapper.clientWidth;
+          const tw = _cachedTrackW || getTrackWidth(vw);
 
-          const pct = (viewportWidth / 2 - currentTrackX + (mouseX - viewportWidth / 2)) / trackWidth;
+          const pct = (vw / 2 - currentTrackX + (mouseX - vw / 2)) / tw;
           const hoverSeconds = Math.max(0, Math.min(86399, pct * 86400));
 
-          const hh = Math.floor(hoverSeconds / 3600);
-          const mm = Math.floor((hoverSeconds % 3600) / 60);
-          const ss = Math.floor(hoverSeconds % 60);
-
-          hoverTooltip.style.transform = `translate3d(${mouseX}px, 0, 0) translateX(-50%)`;
-          hoverTooltip.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-          hoverTooltip.style.display = 'block';
+          // RAF-batch tooltip DOM writes
+          if (!_tooltipRafId) {
+            _tooltipRafId = requestAnimationFrame(() => {
+              _tooltipRafId = null;
+              const hh = Math.floor(hoverSeconds / 3600);
+              const mm = Math.floor((hoverSeconds % 3600) / 60);
+              const ss = Math.floor(hoverSeconds % 60);
+              hoverTooltip.style.transform = `translate3d(${mouseX}px, 0, 0) translateX(-50%)`;
+              hoverTooltip.textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+              hoverTooltip.style.display = 'block';
+            });
+          }
         });
 
         timelineWrapper.addEventListener('mouseleave', () => {
@@ -2210,7 +2257,13 @@ async function actionDeleteAccount(username) {
       const ts = selectedRecording.timestampMs || parseRecordingTimestamp(selectedRecording.name);
       if (ts) {
         const currentMs = ts + (historyPlayer.currentTime * 1000);
-        updatePlayhead(currentMs);
+        // RAF-batch playhead updates to coalesce at display refresh rate
+        if (!_playheadRafId) {
+          _playheadRafId = requestAnimationFrame(() => {
+            _playheadRafId = null;
+            updatePlayhead(currentMs);
+          });
+        }
       }
     }
     const nowSec = Math.floor(historyPlayer.currentTime);
