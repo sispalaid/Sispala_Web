@@ -194,9 +194,16 @@ app.get('/recordings/:cam/:file', requireAdminOrSuperadmin, (req, res) => {
                 try {
                     const stat = fs.statSync(filePath);
                     if (stat.size < 200 * 1024) {
-                        return res.status(404).send('File rekaman tidak lengkap atau rusak (< 200KB).');
+                        // File too small on this drive, check if a complete copy exists on another drive
+                        continue;
                     }
-                } catch (e) {}
+                    // Prevent demuxer crash on actively recorded file missing moov atom
+                    if (Date.now() - stat.mtimeMs < 65000) {
+                        return res.status(425).send('Rekaman sedang berlangsung (belum selesai ditulis).');
+                    }
+                } catch (e) {
+                    continue;
+                }
                 if (req.query.download === 'true') {
                     return res.download(filePath, file);
                 }
@@ -217,7 +224,7 @@ app.get('/recordings/:cam/:file', requireAdminOrSuperadmin, (req, res) => {
             }
         }
     }
-    res.status(404).send('File rekaman tidak ditemukan di drive manapun.');
+    res.status(404).send('File rekaman tidak ditemukan atau rusak di drive manapun.');
 });
 
 // DIUBAH: Login sekarang membaca data akun dari file JSON lokal
@@ -752,34 +759,81 @@ app.get('/api/events/:cam', requireAdminOrSuperadmin, async (req, res) => {
                     const files = await fs.promises.readdir(dir);
                     const jsonFiles = files.filter(f => f.endsWith('.json') && (!targetDate || f.startsWith(targetDate)));
                     
-                    // Read json files concurrently in non-blocking fashion
-                    await Promise.all(jsonFiles.map(async (file) => {
-                        const filePath = path.join(dir, file);
-                        try {
-                            const raw = await fs.promises.readFile(filePath, 'utf8');
-                            const content = JSON.parse(raw);
-                            const videoName = content.video || file.replace('.json', '.mp4');
-                            if (content.summary) {
-                                fileSummaries[videoName] = {
-                                    eventCount: content.eventCount || 0,
-                                    summary: content.summary || {}
-                                };
+                    // Read json files in batches of 25 to avoid saturating Node.js thread pool
+                    const BATCH_SIZE = 25;
+                    for (let i = 0; i < jsonFiles.length; i += BATCH_SIZE) {
+                        const batch = jsonFiles.slice(i, i + BATCH_SIZE);
+                        await Promise.all(batch.map(async (file) => {
+                            const filePath = path.join(dir, file);
+                            try {
+                                const raw = await fs.promises.readFile(filePath, 'utf8');
+                                const content = JSON.parse(raw);
+                                const videoName = content.video || file.replace('.json', '.mp4');
+                                if (content.summary) {
+                                    fileSummaries[videoName] = {
+                                        eventCount: content.eventCount || 0,
+                                        summary: content.summary || {}
+                                    };
+                                }
+                                if (Array.isArray(content.events) && content.events.length > 0) {
+                                    // Coalesce contiguous seconds (gap <= 5s) per video on backend
+                                    let currentSpan = null;
+                                    for (let j = 0; j < content.events.length; j++) {
+                                        const ev = content.events[j];
+                                        const sec = ev.sec || 0;
+                                        if (!currentSpan) {
+                                            currentSpan = {
+                                                video: videoName,
+                                                startSec: sec,
+                                                endSec: sec + 1,
+                                                categories: new Set(ev.categories || []),
+                                                classes: { ...(ev.classes || {}) },
+                                                count: 1
+                                            };
+                                        } else if (sec <= currentSpan.endSec + 5) {
+                                            currentSpan.endSec = Math.max(currentSpan.endSec, sec + 1);
+                                            currentSpan.count++;
+                                            (ev.categories || []).forEach(c => currentSpan.categories.add(c));
+                                            for (const [cls, conf] of Object.entries(ev.classes || {})) {
+                                                currentSpan.classes[cls] = Math.max(currentSpan.classes[cls] || 0, conf);
+                                            }
+                                        } else {
+                                            events.push({
+                                                video: currentSpan.video,
+                                                startSec: currentSpan.startSec,
+                                                endSec: currentSpan.endSec,
+                                                sec: currentSpan.startSec,
+                                                categories: Array.from(currentSpan.categories),
+                                                classes: currentSpan.classes,
+                                                count: currentSpan.count
+                                            });
+                                            currentSpan = {
+                                                video: videoName,
+                                                startSec: sec,
+                                                endSec: sec + 1,
+                                                categories: new Set(ev.categories || []),
+                                                classes: { ...(ev.classes || {}) },
+                                                count: 1
+                                            };
+                                        }
+                                    }
+                                    if (currentSpan) {
+                                        events.push({
+                                            video: currentSpan.video,
+                                            startSec: currentSpan.startSec,
+                                            endSec: currentSpan.endSec,
+                                            sec: currentSpan.startSec,
+                                            categories: Array.from(currentSpan.categories),
+                                            classes: currentSpan.classes,
+                                            count: currentSpan.count
+                                        });
+                                    }
+                                }
+                            } catch (parseErr) {
+                                // Skip invalid or corrupted json
                             }
-                            if (Array.isArray(content.events)) {
-                                content.events.forEach((ev) => {
-                                    events.push({
-                                        video: videoName,
-                                        sec: ev.sec,
-                                        categories: ev.categories || [],
-                                        classes: ev.classes || {},
-                                        conf: ev.conf || 0
-                                    });
-                                });
-                            }
-                        } catch (parseErr) {
-                            // Skip invalid or corrupted json
-                        }
-                    }));
+                        }));
+                    }
                 } catch (err) {
                     console.error(`Gagal membaca events dari ${dir}:`, err.message);
                 }

@@ -1261,13 +1261,19 @@ async function loginAsGuest() {
     const targetMs = new Date(year, month - 1, day, hour, jumpState.minute, jumpState.second || 0).getTime();
     const closest = findClosestRecording(targetMs);
     if (closest) {
+      const prevDate = selectedNVRDate;
       selectedNVRDate = jumpState.selectedDate;
       const offsetSec = Math.max(0, (targetMs - closest.timestampMs) / 1000);
       
-      fetchRecordings().then(() => {
-        playFileAtOffset(closest.name, offsetSec);
-      });
       closeJumpModal();
+
+      if (prevDate !== selectedNVRDate) {
+        fetchRecordings().then(() => {
+          playFileAtOffset(closest.name, offsetSec);
+        });
+      } else {
+        playFileAtOffset(closest.name, offsetSec);
+      }
     } else {
       const hint = document.getElementById('jump-hint');
       if (hint) hint.textContent = 'No recording found for that time.';
@@ -2376,8 +2382,9 @@ async function actionDeleteAccount(username) {
   historyPlayer.addEventListener('error', (e) => {
     const err = historyPlayer.error;
     console.warn('[NVR Player] Video playback error:', err);
+    isPendingSeek = false;
     if (selectedRecording) {
-      playingNowSpan.innerText = `⚠️ Rekaman ${selectedRecording.name} tidak dapat diputar (terpotong saat kamera offline)`;
+      playingNowSpan.innerText = `⚠️ Rekaman ${selectedRecording.name} tidak dapat diputar (file rusak / terpotong saat kamera offline)`;
       playingNowSpan.style.color = '#ff6b6b';
     }
   });
