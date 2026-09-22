@@ -552,6 +552,24 @@ def start_ffmpeg(
     return subprocess.Popen(cmd, stdin=subprocess.PIPE)
 
 
+def stop_ffmpeg_gracefully(proc, timeout=2.0):
+    if not proc:
+        return
+    try:
+        if proc.stdin:
+            try:
+                proc.stdin.close()
+            except Exception:
+                pass
+        proc.terminate()
+        proc.wait(timeout=timeout)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
 def start_ffmpeg_decode(source, width, height, fps, decode_device, rtsp_transport, timeout_seconds):
     cmd = [
         'ffmpeg',
@@ -664,13 +682,9 @@ def main():
             data = decode_proc.stdout.read(frame_bytes)
             if len(data) != frame_bytes:
                 decode_proc.kill()
-                # Also kill the encode FFmpeg — its stdin pipe is now stale
+                # Gracefully close the encode FFmpeg so it writes the MP4 moov atom before exiting
                 if ffmpeg:
-                    try:
-                        ffmpeg.kill()
-                        ffmpeg.wait(timeout=1)
-                    except Exception:
-                        pass
+                    stop_ffmpeg_gracefully(ffmpeg, timeout=2.0)
                     ffmpeg = None
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF trigger=decode_ffmpeg_pipe_broke action=killed_both_ffmpegs", flush=True)
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=decoder_EOF trigger=decode_ffmpeg_pipe_broke action=restarting_decode_ffmpeg delay=5s", flush=True)
@@ -694,13 +708,9 @@ def main():
             ret, frame = cap.read()
             if not ret or frame is None:
                 cap.release()
-                # Also kill the encode FFmpeg — its stdin pipe is now stale
+                # Gracefully close the encode FFmpeg so it writes the MP4 moov atom before exiting
                 if ffmpeg:
-                    try:
-                        ffmpeg.kill()
-                        ffmpeg.wait(timeout=1)
-                    except Exception:
-                        pass
+                    stop_ffmpeg_gracefully(ffmpeg, timeout=2.0)
                     ffmpeg = None
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed trigger=opencv_read_returned_false action=killed_encode_ffmpeg", flush=True)
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=capture_failed trigger=opencv_read_returned_false action=reopening_cv2_capture delay=5s", flush=True)
@@ -817,19 +827,12 @@ def main():
             print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken trigger=stdin_write_failed consecutive={consecutive_ffmpeg_crashes}/3", flush=True)
             if consecutive_ffmpeg_crashes >= 3:
                 if ffmpeg:
-                    try:
-                        ffmpeg.kill()
-                    except Exception:
-                        pass
+                    stop_ffmpeg_gracefully(ffmpeg, timeout=2.0)
                 print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] [RECONNECT] cam={args.cam} reason=encode_pipe_broken action=giving_up_after_3_attempts exit=full_process_restart", flush=True)
                 raise SystemExit(f"FFmpeg crashed repeatedly for {args.cam}. Exiting to allow storage re-selection.")
             
             if ffmpeg:
-                try:
-                    ffmpeg.kill()
-                    ffmpeg.wait(timeout=1)
-                except Exception:
-                    pass
+                stop_ffmpeg_gracefully(ffmpeg, timeout=2.0)
 
             ffmpeg = start_ffmpeg(
                 output_size[0],

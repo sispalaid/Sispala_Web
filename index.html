@@ -96,144 +96,6 @@
 
 <p id="alarm-status-msg" style="text-align: center; margin-top: 10px; font-weight: bold; min-height: 20px;"></p>
 
-<div id="superadmin-panel" class="superadmin-panel" style="display: none; width: 100%;">
-  <h3 style="color: var(--accent-1); border-bottom: 1px solid var(--stroke-1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 14px;">🛠️ Superadmin Management Console</h3>
-  
-  <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; margin-top: 15px;">
-    
-    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
-      <h4 style="color: #9bc1ff; font-size: 12px; margin-bottom: 10px;">REGISTER NEW ACCOUNT</h4>
-      <form onsubmit="event.preventDefault(); createNewAccount();" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%;">
-        <input type="text" id="new-username" placeholder="New Username" required style="flex: 1; min-width: 150px; margin-bottom: 0;">
-        <input type="password" id="new-password" placeholder="New Password" required style="flex: 1; min-width: 150px; margin-bottom: 0;">
-        <select id="new-role" required style="flex: 1; min-width: 130px; margin-bottom: 0;">
-          <option value="" disabled selected>Select Role</option>
-          <option value="guest">Guest</option>
-          <option value="admin">Admin</option>
-        </select>
-        <button type="submit" style="width: auto; padding: 10px 20px; background: var(--accent-1); color:#000; font-weight:bold; margin-top:0; border-radius: 6px; cursor: pointer;">Create Account</button>
-      </form>
-      <div id="create-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
-    </div>
-
-    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
-      <h4 style="color: var(--accent-2); font-size: 12px; margin-bottom: 10px;">REGISTERED USERS LIST</h4>
-      <div style="margin-bottom: 12px; width: 100%;">
-        <input type="text" id="search-username" onkeyup="filterUserTable()" placeholder="Cari username..." 
-        style="width: 100%; padding: 8px 12px; background: #111622; border: 1px solid var(--stroke-1); border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box; outline: none;">
-      </div>
-      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
-        <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
-          <thead>
-            <tr>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Password</th>
-              <th style="text-align: center;">Actions</th>
-            </tr>
-          </thead>
-          <tbody id="table-users-body">
-            <tr>
-              <td colspan="4" style="text-align:center; color:var(--ink-2); padding: 10px;">Memuat daftar pengguna...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div id="modify-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
-    </div>
-    
-    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-        <h4 style="color: #9bc1ff; font-size: 12px;">USER ACTIVITY LOGS</h4>
-        <button onclick="fetchSuperadminLogs()" style="font-size:10px; padding:3px 8px;">Refresh Logs</button>
-      </div>
-      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
-        <table class="log-table" style="width: 100%;">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="log-table-body">
-            <tr>
-              <td colspan="4" style="text-align:center; color: var(--ink-2);">Memuat data log...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
-      <h4 style="color: var(--accent-1); font-size: 12px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">📢 AUDIO LIBRARY & SPEAKER CONSOLE</h4>
-      
-      <!-- Part 1: Default Audio Settings (Volume + Alarm/Sirine Selector) -->
-      <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid var(--stroke-2); padding-bottom: 15px;">
-        <div style="flex: 1.5; min-width: 250px;">
-          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">📢 GLOBAL SPEAKER MASTER VOLUME</label>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <input type="range" id="masterVolumeSlider" min="0" max="100" value="100" style="flex: 1; cursor: pointer; height: 6px; background: var(--stroke-2); border-radius: 999px;" onchange="updateAudioConfig()">
-            <span id="volumePercentVal" style="font-size: 12px; color: var(--accent-1); font-weight: bold; width: 40px; text-align: right;">100%</span>
-          </div>
-        </div>
-        
-        <div style="flex: 1; min-width: 180px;">
-          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">🔔 DEFAULT ALARM AUDIO (CH 1)</label>
-          <select id="selectAlarmAudio" style="width: 100%; margin-bottom: 0;" onchange="updateAudioConfig()">
-            <option value="Alarm.mpeg">Alarm.mpeg (Default)</option>
-          </select>
-        </div>
-        
-        <div style="flex: 1; min-width: 180px;">
-          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">🚨 DEFAULT SIRINE AUDIO (CH 2)</label>
-          <select id="selectSirineAudio" style="width: 100%; margin-bottom: 0;" onchange="updateAudioConfig()">
-            <option value="Alarm.mpeg">Alarm.mpeg (Default)</option>
-          </select>
-        </div>
-      </div>
-
-      <!-- Part 2: Upload custom audio file -->
-      <div style="margin-bottom: 20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--stroke-2); border-radius: 8px; padding: 15px;">
-        <h5 style="color: #9bc1ff; font-size: 11px; margin-top: 0; margin-bottom: 8px; font-weight: 600;">UPLOAD CUSTOM AUDIO FILE (.mp3, .wav, .mpeg, .ogg, .m4a)</h5>
-        <form id="audioUploadForm" onsubmit="event.preventDefault(); uploadAudioFile();" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-          <input type="file" id="audioFileInput" accept=".mp3,.wav,.mpeg,.ogg,.m4a,.mp4" required style="flex: 1; min-width: 200px; padding: 5px; background: transparent; border: 1px solid var(--stroke-2); border-radius: 4px; color: #fff; font-size: 12px;">
-          <button type="submit" id="btnAudioUpload" style="width: auto; padding: 8px 16px; background: var(--accent-2); color: #000; font-weight: bold; margin-top: 0; border-radius: 6px; cursor: pointer; border: none; font-size: 12px;">Upload Audio</button>
-        </form>
-        <div id="audio-upload-msg" style="font-size: 11px; margin-top: 8px; text-align: left;"></div>
-      </div>
-
-      <!-- Part 3: Audio Files List -->
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h5 style="color: #9bc1ff; font-size: 11px; margin: 0; font-weight: 600;">AUDIO LIBRARY LIST</h5>
-        <button onclick="fetchAudioLibrary()" style="font-size: 9px; padding: 2px 6px; background: var(--stroke-2); border: none; border-radius: 4px; color: #fff; cursor: pointer;">Refresh Library</button>
-      </div>
-      
-      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
-        <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
-          <thead>
-            <tr>
-              <th>Filename</th>
-              <th>Size</th>
-              <th>Channel Playback</th>
-              <th style="text-align: center; width: 260px;">Speaker Actions</th>
-              <th style="text-align: center; width: 80px;">Delete</th>
-            </tr>
-          </thead>
-          <tbody id="table-audio-body">
-            <tr>
-              <td colspan="5" style="text-align: center; color: var(--ink-2); padding: 15px;">Memuat library audio...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div id="audio-console-msg" style="font-size: 11px; margin-top: 8px; text-align: center; font-weight: bold; color: var(--accent-1); min-height: 15px;"></div>
-    </div>
-
-  </div>
-</div>
-
 <div class="playback-panel" id="playback-panel">
   <div class="playback-header">
     <h3 style="font-size: 15px; text-transform: uppercase; letter-spacing: 1.2px;">RECORDING PLAYBACK (NVR)</h3>
@@ -398,6 +260,144 @@
       <button onclick="fetchStorageCleanupLogs()" style="font-size: 9px; padding: 2px 6px; text-transform: none; letter-spacing: 0.5px;">Refresh Cleanup Logs</button>
     </div>
     <div id="storage-cleanup-log-container" style="background: #090e18; border: 1px solid var(--stroke-1); border-radius: 12px; padding: 12px; max-height: 180px; overflow-y: auto; text-align: left; margin: 0; display: flex; flex-direction: column; gap: 8px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);"></div>
+  </div>
+</div>
+
+<div id="superadmin-panel" class="superadmin-panel" style="display: none; width: 100%; margin-top: 30px;">
+  <h3 style="color: var(--accent-1); border-bottom: 1px solid var(--stroke-1); padding-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-size: 14px;">🛠️ Superadmin Management Console</h3>
+  
+  <div style="display: flex; flex-direction: column; gap: 20px; width: 100%; margin-top: 15px;">
+    
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
+      <h4 style="color: #9bc1ff; font-size: 12px; margin-bottom: 10px;">REGISTER NEW ACCOUNT</h4>
+      <form onsubmit="event.preventDefault(); createNewAccount();" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%;">
+        <input type="text" id="new-username" placeholder="New Username" required style="flex: 1; min-width: 150px; margin-bottom: 0;">
+        <input type="password" id="new-password" placeholder="New Password" required style="flex: 1; min-width: 150px; margin-bottom: 0;">
+        <select id="new-role" required style="flex: 1; min-width: 130px; margin-bottom: 0;">
+          <option value="" disabled selected>Select Role</option>
+          <option value="guest">Guest</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button type="submit" style="width: auto; padding: 10px 20px; background: var(--accent-1); color:#000; font-weight:bold; margin-top:0; border-radius: 6px; cursor: pointer;">Create Account</button>
+      </form>
+      <div id="create-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
+    </div>
+
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
+      <h4 style="color: var(--accent-2); font-size: 12px; margin-bottom: 10px;">REGISTERED USERS LIST</h4>
+      <div style="margin-bottom: 12px; width: 100%;">
+        <input type="text" id="search-username" onkeyup="filterUserTable()" placeholder="Cari username..." 
+        style="width: 100%; padding: 8px 12px; background: #111622; border: 1px solid var(--stroke-1); border-radius: 6px; color: #fff; font-size: 12px; box-sizing: border-box; outline: none;">
+      </div>
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
+        <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Password</th>
+              <th style="text-align: center;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="table-users-body">
+            <tr>
+              <td colspan="4" style="text-align:center; color:var(--ink-2); padding: 10px;">Memuat daftar pengguna...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="modify-account-msg" style="font-size:11px; margin-top:8px; text-align:center;"></div>
+    </div>
+    
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+        <h4 style="color: #9bc1ff; font-size: 12px;">USER ACTIVITY LOGS</h4>
+        <button onclick="fetchSuperadminLogs()" style="font-size:10px; padding:3px 8px;">Refresh Logs</button>
+      </div>
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
+        <table class="log-table" style="width: 100%;">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="log-table-body">
+            <tr>
+              <td colspan="4" style="text-align:center; color: var(--ink-2);">Memuat data log...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="superadmin-card" style="width: 100%; box-sizing: border-box;">
+      <h4 style="color: var(--accent-1); font-size: 12px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px;">📢 AUDIO LIBRARY & SPEAKER CONSOLE</h4>
+      
+      <!-- Part 1: Default Audio Settings (Volume + Alarm/Sirine Selector) -->
+      <div style="display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px solid var(--stroke-2); padding-bottom: 15px;">
+        <div style="flex: 1.5; min-width: 250px;">
+          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">📢 GLOBAL SPEAKER MASTER VOLUME</label>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <input type="range" id="masterVolumeSlider" min="0" max="100" value="100" style="flex: 1; cursor: pointer; height: 6px; background: var(--stroke-2); border-radius: 999px;" onchange="updateAudioConfig()">
+            <span id="volumePercentVal" style="font-size: 12px; color: var(--accent-1); font-weight: bold; width: 40px; text-align: right;">100%</span>
+          </div>
+        </div>
+        
+        <div style="flex: 1; min-width: 180px;">
+          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">🔔 DEFAULT ALARM AUDIO (CH 1)</label>
+          <select id="selectAlarmAudio" style="width: 100%; margin-bottom: 0;" onchange="updateAudioConfig()">
+            <option value="Alarm.mpeg">Alarm.mpeg (Default)</option>
+          </select>
+        </div>
+        
+        <div style="flex: 1; min-width: 180px;">
+          <label style="font-size: 11px; color: var(--ink-2); display: block; margin-bottom: 6px; font-weight: 600;">🚨 DEFAULT SIRINE AUDIO (CH 2)</label>
+          <select id="selectSirineAudio" style="width: 100%; margin-bottom: 0;" onchange="updateAudioConfig()">
+            <option value="Alarm.mpeg">Alarm.mpeg (Default)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Part 2: Upload custom audio file -->
+      <div style="margin-bottom: 20px; background: rgba(255,255,255,0.01); border: 1px dashed var(--stroke-2); border-radius: 8px; padding: 15px;">
+        <h5 style="color: #9bc1ff; font-size: 11px; margin-top: 0; margin-bottom: 8px; font-weight: 600;">UPLOAD CUSTOM AUDIO FILE (.mp3, .wav, .mpeg, .ogg, .m4a)</h5>
+        <form id="audioUploadForm" onsubmit="event.preventDefault(); uploadAudioFile();" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <input type="file" id="audioFileInput" accept=".mp3,.wav,.mpeg,.ogg,.m4a,.mp4" required style="flex: 1; min-width: 200px; padding: 5px; background: transparent; border: 1px solid var(--stroke-2); border-radius: 4px; color: #fff; font-size: 12px;">
+          <button type="submit" id="btnAudioUpload" style="width: auto; padding: 8px 16px; background: var(--accent-2); color: #000; font-weight: bold; margin-top: 0; border-radius: 6px; cursor: pointer; border: none; font-size: 12px;">Upload Audio</button>
+        </form>
+        <div id="audio-upload-msg" style="font-size: 11px; margin-top: 8px; text-align: left;"></div>
+      </div>
+
+      <!-- Part 3: Audio Files List -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h5 style="color: #9bc1ff; font-size: 11px; margin: 0; font-weight: 600;">AUDIO LIBRARY LIST</h5>
+        <button onclick="fetchAudioLibrary()" style="font-size: 9px; padding: 2px 6px; background: var(--stroke-2); border: none; border-radius: 4px; color: #fff; cursor: pointer;">Refresh Library</button>
+      </div>
+      
+      <div class="log-table-wrapper" style="max-height: 250px; overflow-y: auto; width: 100%;">
+        <table class="log-table" style="width: 100%; border-collapse: collapse; text-align: left; font-size: 12px;">
+          <thead>
+            <tr>
+              <th>Filename</th>
+              <th>Size</th>
+              <th>Channel Playback</th>
+              <th style="text-align: center; width: 260px;">Speaker Actions</th>
+              <th style="text-align: center; width: 80px;">Delete</th>
+            </tr>
+          </thead>
+          <tbody id="table-audio-body">
+            <tr>
+              <td colspan="5" style="text-align: center; color: var(--ink-2); padding: 15px;">Memuat library audio...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="audio-console-msg" style="font-size: 11px; margin-top: 8px; text-align: center; font-weight: bold; color: var(--accent-1); min-height: 15px;"></div>
+    </div>
+
   </div>
 </div>
 

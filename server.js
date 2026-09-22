@@ -191,6 +191,12 @@ app.get('/recordings/:cam/:file', requireAdminOrSuperadmin, (req, res) => {
         if (root.isMounted) {
             const filePath = path.join(root.basePath, cam, file);
             if (fs.existsSync(filePath)) {
+                try {
+                    const stat = fs.statSync(filePath);
+                    if (stat.size < 200 * 1024) {
+                        return res.status(404).send('File rekaman tidak lengkap atau rusak (< 200KB).');
+                    }
+                } catch (e) {}
                 if (req.query.download === 'true') {
                     return res.download(filePath, file);
                 }
@@ -664,48 +670,41 @@ app.get('/api/cleanup-log', requireSuperadmin, (req, res) => {
 });
 
 // --- API: Ambil Daftar Rekaman ---
-app.get('/api/recordings/:cam', requireAdminOrSuperadmin, (req, res) => {
+app.get('/api/recordings/:cam', requireAdminOrSuperadmin, async (req, res) => {
     const cam = req.params.cam;
     const roots = getRecordingRoots();
-    const allFiles = new Set();
+    const validFiles = new Set();
+    const now = Date.now();
 
-    roots.forEach((root) => {
+    for (const root of roots) {
         if (root.isMounted) {
             const dir = path.join(root.basePath, cam);
-            if (fs.existsSync(dir)) {
-                try {
-                    const files = fs.readdirSync(dir);
-                    files.forEach((file) => {
-                        if (file.endsWith('.mp4')) {
-                            allFiles.add(file);
-                        }
-                    });
-                } catch (err) {
-                    console.error(`Gagal membaca rekaman dari ${dir}:`, err);
-                }
-            }
-        }
-    });
-
-    const sorted = Array.from(allFiles).sort().reverse();
-    // Exclude the actively recorded file if modified less than 10 seconds ago (segment in progress)
-    if (sorted.length > 0) {
-        const latestFile = sorted[0];
-        for (const root of roots) {
-            if (root.isMounted) {
-                const testPath = path.join(root.basePath, cam, latestFile);
-                try {
-                    if (fs.existsSync(testPath)) {
-                        const stat = fs.statSync(testPath);
-                        if (Date.now() - stat.mtimeMs < 10000) {
-                            sorted.shift();
-                            break;
-                        }
+            try {
+                const files = await fs.promises.readdir(dir);
+                for (const file of files) {
+                    if (file.endsWith('.mp4')) {
+                        const filePath = path.join(dir, file);
+                        try {
+                            const stat = await fs.promises.stat(filePath);
+                            // Filter 1: Ignore empty or truncated fragments (< 200 KB)
+                            if (stat.size < 200 * 1024) {
+                                continue;
+                            }
+                            // Filter 2: Ignore actively recorded segment in progress (< 65 seconds since last modified)
+                            if (now - stat.mtimeMs < 65000) {
+                                continue;
+                            }
+                            validFiles.add(file);
+                        } catch (e) {}
                     }
-                } catch (e) {}
+                }
+            } catch (err) {
+                console.error(`Gagal membaca rekaman dari ${dir}:`, err.message);
             }
         }
     }
+
+    const sorted = Array.from(validFiles).sort().reverse();
     res.json(sorted);
 });
 

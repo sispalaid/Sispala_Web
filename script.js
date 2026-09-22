@@ -227,40 +227,26 @@ const streams = [
       if (statusBadge) statusBadge.style.display = 'none';
       return;
     }
+    // Only pre-buffer when current video is at least 45 seconds in to avoid loading 3 videos at once
+    if (historyPlayer && historyPlayer.currentTime < 45) {
+      return;
+    }
     const cam = document.getElementById('camSelect').value;
-    const prevItem = playbackIndex > 0 ? playbackQueue[playbackIndex - 1] : null;
     const nextItem = (playbackIndex + 1 < playbackQueue.length) ? playbackQueue[playbackIndex + 1] : null;
 
     let bufferedLabels = [];
 
-    // 1. Pre-buffer previous minute (N - 1)
-    if (preloadPrevPlayer) {
-      if (prevItem) {
-        if (prevItem.name !== currentlyPreloadingPrev) {
-          currentlyPreloadingPrev = prevItem.name;
-          preloadPrevPlayer.src = `/recordings/${cam}/${prevItem.name}`;
-          preloadPrevPlayer.load();
-        }
-        bufferedLabels.push(`◀ ${prevItem.name.slice(11, 16)}`);
-      } else {
-        currentlyPreloadingPrev = null;
-        preloadPrevPlayer.removeAttribute('src');
+    // Pre-buffer next minute (N + 1)
+    if (preloadNextPlayer && nextItem) {
+      if (nextItem.name !== currentlyPreloadingNext) {
+        currentlyPreloadingNext = nextItem.name;
+        preloadNextPlayer.src = `/recordings/${cam}/${nextItem.name}`;
+        preloadNextPlayer.load();
       }
-    }
-
-    // 2. Pre-buffer next minute (N + 1)
-    if (preloadNextPlayer) {
-      if (nextItem) {
-        if (nextItem.name !== currentlyPreloadingNext) {
-          currentlyPreloadingNext = nextItem.name;
-          preloadNextPlayer.src = `/recordings/${cam}/${nextItem.name}`;
-          preloadNextPlayer.load();
-        }
-        bufferedLabels.push(`${nextItem.name.slice(11, 16)} ▶`);
-      } else {
-        currentlyPreloadingNext = null;
-        preloadNextPlayer.removeAttribute('src');
-      }
+      bufferedLabels.push(`${nextItem.name.slice(11, 16)} ▶`);
+    } else if (preloadNextPlayer && !nextItem) {
+      currentlyPreloadingNext = null;
+      preloadNextPlayer.removeAttribute('src');
     }
 
     const statusBadge = document.getElementById('nvr-buffer-status');
@@ -794,37 +780,39 @@ async function loginAsGuest() {
       updatePlayhead(pendingSeekTargetMs);
       
       const applySeekAndPlay = () => {
+        if (!isPendingSeek) return;
         if (offsetSec > 0 && isFinite(offsetSec)) {
-          try { historyPlayer.currentTime = offsetSec; } catch (e) {}
+          try {
+            if (historyPlayer.seekable && historyPlayer.seekable.length > 0) {
+              historyPlayer.currentTime = offsetSec;
+            }
+          } catch (e) {}
         }
         historyPlayer.playbackRate = currentPlaybackSpeed;
         historyPlayer.play().catch(() => {});
         isPendingSeek = false;
-        preloadNextMinute();
       };
 
       if (historyPlayer.readyState >= 1) {
         applySeekAndPlay();
       } else {
         historyPlayer.addEventListener('loadedmetadata', applySeekAndPlay, { once: true });
-        // Immediately start buffering and playing
-        historyPlayer.play().catch(() => {});
-        preloadNextMinute();
-        setTimeout(() => {
-          if (isPendingSeek) applySeekAndPlay();
-        }, 1200);
+        historyPlayer.addEventListener('canplay', applySeekAndPlay, { once: true });
       }
     } else {
       if (offsetSec >= 0 && isFinite(offsetSec)) {
         isPendingSeek = true;
         pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
         updatePlayhead(pendingSeekTargetMs);
-        try { historyPlayer.currentTime = offsetSec; } catch (e) {}
+        try {
+          if (historyPlayer.seekable && historyPlayer.seekable.length > 0) {
+            historyPlayer.currentTime = offsetSec;
+          }
+        } catch (e) {}
         historyPlayer.playbackRate = currentPlaybackSpeed;
         historyPlayer.play().catch(() => {
           isPendingSeek = false;
         });
-        preloadNextMinute();
       }
     }
   }
@@ -2216,6 +2204,7 @@ async function actionDeleteAccount(username) {
       historyPlayer.playbackRate = currentPlaybackSpeed;
     }
   });
+  let lastTimeUpdateCheck = 0;
   historyPlayer.addEventListener('timeupdate', () => {
     if (selectedRecording) {
       const ts = selectedRecording.timestampMs || parseRecordingTimestamp(selectedRecording.name);
@@ -2224,7 +2213,20 @@ async function actionDeleteAccount(username) {
         updatePlayhead(currentMs);
       }
     }
-    preloadNextMinute();
+    const nowSec = Math.floor(historyPlayer.currentTime);
+    if (nowSec >= 45 && nowSec !== lastTimeUpdateCheck) {
+      lastTimeUpdateCheck = nowSec;
+      multiBufferAdjacentMinutes();
+    }
+  });
+
+  historyPlayer.addEventListener('error', (e) => {
+    const err = historyPlayer.error;
+    console.warn('[NVR Player] Video playback error:', err);
+    if (selectedRecording) {
+      playingNowSpan.innerText = `⚠️ Rekaman ${selectedRecording.name} tidak dapat diputar (terpotong saat kamera offline)`;
+      playingNowSpan.style.color = '#ff6b6b';
+    }
   });
 
   async function handleLogin() {
