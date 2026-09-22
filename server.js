@@ -69,6 +69,8 @@ class FileSessionStore extends Store {
     }
 }
 
+app.set('trust proxy', 1);
+
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -76,10 +78,11 @@ app.use(session({
     store: new FileSessionStore(),
     secret: process.env.SESSION_SECRET || 'sispala-secret-key-fallback',
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
+    rolling: true,
     cookie: { 
-        secure: false,
-        maxAge: 30 * 60 * 1000 // Sesi dibatasi aktif selama 30 menit saja
+        secure: 'auto',
+        maxAge: 30 * 60 * 1000 // Sesi dibatasi aktif selama 30 menit tanpa aktivitas
     }
 }));
 

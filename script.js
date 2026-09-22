@@ -18,6 +18,73 @@ const streams = [
   let nvrFileSummaries = {};
   let currentUserRole = null;
 
+  const IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes idle timeout
+  let lastUserActivity = Date.now();
+  let storageStatsIntervalId = null;
+  let superadminLogsIntervalId = null;
+
+  // Track real human activity to reset the idle countdown
+  ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
+    window.addEventListener(evt, () => {
+      const now = Date.now();
+      if (now - lastUserActivity > 3000) {
+        lastUserActivity = now;
+      }
+    }, { passive: true });
+  });
+
+  function triggerSessionExpired(customMessage) {
+    const overlay = document.getElementById('login-overlay');
+    if (!currentUserRole && overlay && overlay.style.display !== 'none') {
+      return; // Already on login screen
+    }
+    console.warn('[AUTH] Session expired or unauthorized access detected.');
+    currentUserRole = null;
+    
+    // Stop polling intervals immediately
+    if (storageStatsIntervalId) { clearInterval(storageStatsIntervalId); storageStatsIntervalId = null; }
+    if (superadminLogsIntervalId) { clearInterval(superadminLogsIntervalId); superadminLogsIntervalId = null; }
+    if (typeof logsIntervalId !== 'undefined' && logsIntervalId) { clearInterval(logsIntervalId); logsIntervalId = null; }
+
+    // Pause active video playback and live streams
+    if (typeof historyPlayer !== 'undefined' && historyPlayer) {
+      try { historyPlayer.pause(); } catch (e) {}
+    }
+    if (typeof pauseLiveStreamsForPlayback === 'function') {
+      pauseLiveStreamsForPlayback();
+    }
+
+    // Show login overlay
+    const mainContent = document.getElementById('main-content');
+    if (overlay) overlay.style.display = 'flex';
+    if (mainContent) mainContent.style.display = 'none';
+
+    // Show clean user notice
+    const errorEl = document.getElementById('login-error') || document.getElementById('error-message');
+    if (errorEl) {
+      errorEl.innerText = customMessage || '⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas. Silakan login kembali.';
+      errorEl.style.display = 'block';
+    }
+  }
+  window.triggerSessionExpired = triggerSessionExpired;
+
+  function checkAuthStatus(response, customMessage) {
+    if (response && (response.status === 401 || response.status === 403)) {
+      triggerSessionExpired(customMessage || '⚠️ Sesi Anda telah berakhir. Silakan login kembali.');
+      return false;
+    }
+    return true;
+  }
+
+  // Periodic check for idle timeout (ticks down only when no user activity)
+  setInterval(() => {
+    if (currentUserRole && currentUserRole !== 'guest') {
+      if (Date.now() - lastUserActivity >= IDLE_TIMEOUT_MS) {
+        triggerSessionExpired('⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas selama 30 menit. Silakan login kembali.');
+      }
+    }
+  }, 10000);
+
   const CATEGORY_COLORS = {
     person: '#ff9800',
     vehicle: '#00e676',
@@ -338,6 +405,7 @@ async function loginAsGuest() {
 
     try {
       const response = await fetch(`/api/recordings/${cam}`);
+      if (!checkAuthStatus(response)) return;
       if (!response.ok) {
         fileListDiv.innerHTML = '<div style="padding:10px; color:orange;">Gagal memuat rekaman.</div>';
         return;
@@ -440,6 +508,7 @@ async function loginAsGuest() {
     if (!targetDate) return;
     try {
       const evRes = await fetch(`/api/events/${cam}?date=${targetDate}`);
+      if (!checkAuthStatus(evRes)) return;
       const evData = await evRes.json();
       const currentCam = document.getElementById('camSelect').value;
       if (currentCam !== cam || selectedNVRDate !== targetDate) return;
@@ -1520,6 +1589,7 @@ async function actionDeleteAccount(username) {
     }
     try {
       const response = await fetch('/api/storage-stats');
+      if (!checkAuthStatus(response)) return;
       if (!response.ok) return;
       const data = await response.json();
       storageEls.updated.textContent = `Updated: ${data.updatedAt}`;
@@ -1913,6 +1983,11 @@ async function actionDeleteAccount(username) {
       const playbackPanel = document.getElementById('playback-panel');
       const storagePanel = document.getElementById('storage-panel');
 
+      // Reset idle activity timer & clear any lingering intervals
+      lastUserActivity = Date.now();
+      if (storageStatsIntervalId) { clearInterval(storageStatsIntervalId); storageStatsIntervalId = null; }
+      if (superadminLogsIntervalId) { clearInterval(superadminLogsIntervalId); superadminLogsIntervalId = null; }
+
       if (role === 'guest') {
           if (alarmContainer) alarmContainer.style.display = 'none';
           if (playbackPanel) playbackPanel.style.display = 'none';
@@ -1929,6 +2004,7 @@ async function actionDeleteAccount(username) {
           if (systemLogsPanel) systemLogsPanel.style.display = 'none';
           if (cleanupBlock) cleanupBlock.style.display = 'none';
           toggleAutoRefreshLogs(false);
+          storageStatsIntervalId = setInterval(fetchStorageStats, 20000);
           setTimeout(() => {
             fetchRecordings();
             fetchStorageStats();
@@ -1940,6 +2016,14 @@ async function actionDeleteAccount(username) {
           if (superadminPanel) superadminPanel.style.display = 'block';
           if (systemLogsPanel) systemLogsPanel.style.display = 'block';
           if (cleanupBlock) cleanupBlock.style.display = 'block';
+
+          storageStatsIntervalId = setInterval(fetchStorageStats, 20000);
+          superadminLogsIntervalId = setInterval(() => {
+            const panel = document.getElementById('superadmin-panel');
+            if (currentUserRole === 'superadmin' && panel && panel.style.display !== 'none' && panel.offsetParent !== null) {
+              fetchSuperadminLogs();
+            }
+          }, 15000);
 
           // Micro-stagger primary and secondary views to allow login DOM transition to paint with 0ms input delay
           setTimeout(() => {
@@ -1964,6 +2048,7 @@ async function actionDeleteAccount(username) {
   async function fetchSuperadminLogs() {
     try {
         const res = await fetch('/api/logs');
+        if (!checkAuthStatus(res)) return;
         const data = await res.json();
         const tbody = document.getElementById('log-table-body');
         if (!tbody) return;
@@ -2100,17 +2185,6 @@ async function actionDeleteAccount(username) {
   }
 
   window.onload = () => {
-    setInterval(() => {
-      if (currentUserRole === 'admin' || currentUserRole === 'superadmin') {
-        fetchStorageStats();
-      }
-    }, 20000);
-    setInterval(() => {
-      const panel = document.getElementById('superadmin-panel');
-      if (currentUserRole === 'superadmin' && panel && panel.style.display !== 'none' && panel.offsetParent !== null && typeof fetchSuperadminLogs === 'function') {
-        fetchSuperadminLogs();
-      }
-    }, 15000);
     const hourInput = document.getElementById('time-hour');
     const minuteInput = document.getElementById('time-minute');
     const secondInput = document.getElementById('time-second');
@@ -2383,10 +2457,34 @@ async function actionDeleteAccount(username) {
     const err = historyPlayer.error;
     console.warn('[NVR Player] Video playback error:', err);
     isPendingSeek = false;
-    if (selectedRecording) {
-      playingNowSpan.innerText = `⚠️ Rekaman ${selectedRecording.name} tidak dapat diputar (file rusak / terpotong saat kamera offline)`;
-      playingNowSpan.style.color = '#ff6b6b';
-    }
+
+    if (!historyPlayer.src || historyPlayer.src === '' || historyPlayer.src.endsWith('/')) return;
+
+    // Check if failure is due to 401/403 session expiration or 425 ongoing recording
+    fetch(historyPlayer.src, { method: 'HEAD' })
+      .then(res => {
+        if (res.status === 401 || res.status === 403) {
+          triggerSessionExpired('⚠️ Sesi Anda telah berakhir. Silakan login kembali untuk memutar rekaman.');
+          return;
+        }
+        if (res.status === 425) {
+          if (selectedRecording) {
+            playingNowSpan.innerText = `⏳ Rekaman ${selectedRecording.name} sedang berlangsung (belum selesai ditulis)`;
+            playingNowSpan.style.color = '#f1c40f';
+          }
+          return;
+        }
+        if (selectedRecording) {
+          playingNowSpan.innerText = `⚠️ Rekaman ${selectedRecording.name} tidak dapat diputar (terpotong saat kamera offline)`;
+          playingNowSpan.style.color = '#ff6b6b';
+        }
+      })
+      .catch(() => {
+        if (selectedRecording) {
+          playingNowSpan.innerText = `⚠️ Rekaman ${selectedRecording.name} tidak dapat diputar (terpotong saat kamera offline)`;
+          playingNowSpan.style.color = '#ff6b6b';
+        }
+      });
   });
 
   async function handleLogin() {
@@ -2401,9 +2499,16 @@ async function actionDeleteAccount(username) {
 
     const data = await res.json();
     if (data.success) {
+        lastUserActivity = Date.now();
+        const errEl = document.getElementById('login-error');
+        if (errEl) errEl.style.display = 'none';
         applyPermissions(data.role);
     } else {
-        document.getElementById('login-error').innerText = data.message;
+        const errEl = document.getElementById('login-error');
+        if (errEl) {
+          errEl.innerText = data.message;
+          errEl.style.display = 'block';
+        }
     }
   }
 
@@ -2432,6 +2537,7 @@ async function actionDeleteAccount(username) {
 
       try {
           const res = await fetch(url);
+          if (!checkAuthStatus(res)) return;
           const data = await res.json();
           if (data.success) {
               let logs = data.logs || 'No logs available.';
