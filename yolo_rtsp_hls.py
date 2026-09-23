@@ -543,6 +543,8 @@ def start_ffmpeg(
         '-sc_threshold', '0',
         '-f', 'segment',
         '-segment_time', str(segment_time),
+        '-segment_atclocktime', '1',
+        '-segment_clocktime_offset', '0',
         '-segment_format_options', 'movflags=faststart',
         '-strftime', '1',
         '-reset_timestamps', '1',

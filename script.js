@@ -621,6 +621,7 @@ async function loginAsGuest() {
 
   // --- NVR Timeline Functions & State ---
   let isDraggingTimeline = false;
+  let wasPlayingBeforeDrag = false;
   let dragStartX = 0;
   let dragStartTrackX = 0;
   let currentTrackX = 0;
@@ -825,9 +826,11 @@ async function loginAsGuest() {
     const currentSec = getCurrentPlaybackSecondsFromMidnight();
     const nextEv = nvrDetectionEvents.find(e => e.secondsFromMidnight > currentSec + 1);
     if (nextEv) {
-      seekToTimeOfDay(nextEv.secondsFromMidnight);
+      const targetSec = Math.max(0, nextEv.secondsFromMidnight - 2);
+      seekToTimeOfDay(targetSec);
     } else {
-      seekToTimeOfDay(nvrDetectionEvents[0].secondsFromMidnight);
+      const targetSec = Math.max(0, nvrDetectionEvents[0].secondsFromMidnight - 2);
+      seekToTimeOfDay(targetSec);
     }
   }
   window.jumpToNextEvent = jumpToNextEvent;
@@ -841,19 +844,18 @@ async function loginAsGuest() {
     const prevEvents = nvrDetectionEvents.filter(e => e.secondsFromMidnight < currentSec - 1);
     if (prevEvents.length > 0) {
       const prevEv = prevEvents[prevEvents.length - 1];
-      seekToTimeOfDay(prevEv.secondsFromMidnight);
+      const targetSec = Math.max(0, prevEv.secondsFromMidnight - 2);
+      seekToTimeOfDay(targetSec);
     } else {
-      seekToTimeOfDay(nvrDetectionEvents[nvrDetectionEvents.length - 1].secondsFromMidnight);
+      const targetSec = Math.max(0, nvrDetectionEvents[nvrDetectionEvents.length - 1].secondsFromMidnight - 2);
+      seekToTimeOfDay(targetSec);
     }
   }
   window.jumpToPrevEvent = jumpToPrevEvent;
 
-  function updatePlayhead(timestampMs) {
+  function updatePlayhead(timestampMs, force = false) {
     if (isDraggingTimeline) return;
-    if (isPendingSeek && Math.abs(timestampMs - pendingSeekTargetMs) > 1500) {
-      isPendingSeek = false;
-    }
-    if (isPendingSeek && timestampMs !== pendingSeekTargetMs) return;
+    if (isPendingSeek && !force) return;
 
     const badge = document.getElementById('nvrPlayheadBadge');
     const date = new Date(timestampMs);
@@ -916,7 +918,22 @@ async function loginAsGuest() {
       });
 
       if (nextFile) {
+        const d = new Date(nextFile.timestampMs);
+        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        if (playingNowSpan) {
+          playingNowSpan.innerText = `⚠️ Tidak ada rekaman di jam ini (Melompat ke rekaman berikutnya: ${timeStr})`;
+          playingNowSpan.style.color = '#f39c12';
+        }
         playFileAtOffset(nextFile.name, 0);
+      } else if (playbackQueue.length > 0) {
+        const lastFile = playbackQueue[playbackQueue.length - 1];
+        const d = new Date(lastFile.timestampMs);
+        const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        if (playingNowSpan) {
+          playingNowSpan.innerText = `⚠️ Melebihi rekaman terakhir (Memutar rekaman terakhir: ${timeStr})`;
+          playingNowSpan.style.color = '#f39c12';
+        }
+        playFileAtOffset(lastFile.name, 0);
       }
     }
   }
@@ -936,15 +953,13 @@ async function loginAsGuest() {
 
       isPendingSeek = true;
       pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
-      updatePlayhead(pendingSeekTargetMs);
+      updatePlayhead(pendingSeekTargetMs, true);
       
       const applySeekAndPlay = () => {
         if (!isPendingSeek) return;
         if (offsetSec > 0 && isFinite(offsetSec)) {
           try {
-            if (historyPlayer.seekable && historyPlayer.seekable.length > 0) {
-              historyPlayer.currentTime = offsetSec;
-            }
+            historyPlayer.currentTime = offsetSec;
           } catch (e) {}
         }
         historyPlayer.playbackRate = currentPlaybackSpeed;
@@ -965,7 +980,7 @@ async function loginAsGuest() {
       if (offsetSec >= 0 && isFinite(offsetSec)) {
         isPendingSeek = true;
         pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
-        updatePlayhead(pendingSeekTargetMs);
+        updatePlayhead(pendingSeekTargetMs, true);
         try {
           historyPlayer.currentTime = offsetSec;
         } catch (e) {}
@@ -2212,7 +2227,8 @@ async function actionDeleteAccount(username) {
         const marker = e.target.closest('.nvr-event-marker');
         if (marker && marker.dataset.seekSec != null) {
           e.stopPropagation();
-          seekToTimeOfDay(Number(marker.dataset.seekSec));
+          const targetSec = Math.max(0, Number(marker.dataset.seekSec) - 2);
+          seekToTimeOfDay(targetSec);
         }
       });
 
@@ -2235,13 +2251,20 @@ async function actionDeleteAccount(username) {
         dragStartX = e.clientX;
         dragStartTrackX = currentTrackX;
         cacheTimelineDimensions();
+
+        // Pause active playback during drag so video doesn't fight the user's interaction
+        wasPlayingBeforeDrag = (historyPlayer && !historyPlayer.paused && !historyPlayer.ended);
+        if (wasPlayingBeforeDrag) {
+          historyPlayer.pause();
+        }
+
         e.preventDefault();
       });
 
       window.addEventListener('mousemove', (e) => {
         if (!isDraggingTimeline) return;
         const dx = e.clientX - dragStartX;
-        if (Math.abs(dx) > 3) hasDraggedFar = true;
+        if (Math.abs(dx) > 1) hasDraggedFar = true;
         let newX = dragStartTrackX + dx;
         
         // Use cached dimensions — no forced reflow
@@ -2276,6 +2299,9 @@ async function actionDeleteAccount(username) {
         track.style.transition = 'transform 0.1s ease-out';
         if (hasDraggedFar) {
           seekToTimeOfDay(draggedTimeSeconds);
+          if (wasPlayingBeforeDrag && historyPlayer) {
+            historyPlayer.play().catch(() => {});
+          }
         }
       });
 
@@ -2290,6 +2316,9 @@ async function actionDeleteAccount(username) {
         const pct = (viewportWidth / 2 - currentTrackX + (mouseX - viewportWidth / 2)) / trackWidth;
         const targetSeconds = Math.max(0, Math.min(86399, pct * 86400));
         seekToTimeOfDay(targetSeconds);
+        if (wasPlayingBeforeDrag && historyPlayer) {
+          historyPlayer.play().catch(() => {});
+        }
       });
 
       timelineWrapper.addEventListener('touchstart', (e) => {
@@ -2300,12 +2329,17 @@ async function actionDeleteAccount(username) {
         dragStartX = e.touches[0].clientX;
         dragStartTrackX = currentTrackX;
         cacheTimelineDimensions();
+
+        wasPlayingBeforeDrag = (historyPlayer && !historyPlayer.paused && !historyPlayer.ended);
+        if (wasPlayingBeforeDrag) {
+          historyPlayer.pause();
+        }
       });
 
       timelineWrapper.addEventListener('touchmove', (e) => {
         if (!isDraggingTimeline || e.touches.length === 0) return;
         const dx = e.touches[0].clientX - dragStartX;
-        if (Math.abs(dx) > 3) hasDraggedFar = true;
+        if (Math.abs(dx) > 1) hasDraggedFar = true;
         let newX = dragStartTrackX + dx;
         
         // Use cached dimensions — no forced reflow
@@ -2340,6 +2374,9 @@ async function actionDeleteAccount(username) {
         track.style.transition = 'transform 0.1s ease-out';
         if (hasDraggedFar) {
           seekToTimeOfDay(draggedTimeSeconds);
+          if (wasPlayingBeforeDrag && historyPlayer) {
+            historyPlayer.play().catch(() => {});
+          }
         }
       });
 
@@ -2446,6 +2483,7 @@ async function actionDeleteAccount(username) {
   });
   let lastTimeUpdateCheck = 0;
   historyPlayer.addEventListener('timeupdate', () => {
+    if (isDraggingTimeline || isPendingSeek) return;
     if (selectedRecording) {
       const ts = selectedRecording.timestampMs || parseRecordingTimestamp(selectedRecording.name);
       if (ts) {
