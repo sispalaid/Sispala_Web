@@ -93,6 +93,10 @@ const streams = [
     person: '#ff9800',
     vehicle: '#00e676',
     animal: '#b388ff',
+    bicycle: '#00e5ff',
+    motorcycle: '#ffea00',
+    bus: '#00b0ff',
+    truck: '#76ff03',
     other: '#ff4081'
   };
 
@@ -100,17 +104,33 @@ const streams = [
     person: '🚶',
     vehicle: '🚗',
     animal: '🐕',
+    bicycle: '🚲',
+    motorcycle: '🏍️',
+    bus: '🚌',
+    truck: '🚚',
     other: '⚡'
   };
 
+  function areCategoriesEqual(catsA, catsB) {
+    if (!catsA || !catsB) return false;
+    const a = Array.isArray(catsA) ? catsA : Array.from(catsA);
+    const b = Array.isArray(catsB) ? catsB : Array.from(catsB);
+    if (a.length !== b.length) return false;
+    const setA = new Set(a);
+    return b.every(c => setA.has(c));
+  }
+
   function getMultiCategoryGradient(categories) {
     if (!categories || categories.length === 0) return CATEGORY_COLORS.other;
-    if (categories.length === 1) return CATEGORY_COLORS[categories[0]] || CATEGORY_COLORS.other;
+    const uniqueCats = Array.from(new Set(categories));
+    if (uniqueCats.length === 1) return CATEGORY_COLORS[uniqueCats[0]] || CATEGORY_COLORS.other;
 
-    const step = 100 / categories.length;
-    const stops = categories.map((cat, i) => {
+    const step = 100 / uniqueCats.length;
+    const stops = uniqueCats.map((cat, i) => {
       const color = CATEGORY_COLORS[cat] || CATEGORY_COLORS.other;
-      return `${color} ${(i * step).toFixed(1)}%, ${color} ${((i + 1) * step).toFixed(1)}%`;
+      const startPct = (i * step).toFixed(2);
+      const endPct = ((i + 1) * step).toFixed(2);
+      return `${color} ${startPct}%, ${color} ${endPct}%`;
     });
     return `linear-gradient(180deg, ${stops.join(', ')})`;
   } 
@@ -539,68 +559,76 @@ async function loginAsGuest() {
         const fileTimeMap = new Map();
         recordingsIndex.forEach(f => {
           const d = new Date(f.timestampMs);
-          fileTimeMap.set(f.name, d.getHours() * 3600 + d.getMinutes() * 60);
+          fileTimeMap.set(f.name, d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds());
         });
 
         // Fast single-pass map with O(1) lookups
         const rawEvents = [];
         const rawList = evData.events || [];
         for (let i = 0; i < rawList.length; i++) {
+          const ev = rawList[i];
           let baseSec = fileTimeMap.get(ev.video);
           if (baseSec === undefined && ev.video) {
             const ts = parseRecordingTimestamp(ev.video);
             if (ts !== null) {
               const d = new Date(ts);
-              baseSec = d.getHours() * 3600 + d.getMinutes() * 60;
+              baseSec = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
             }
           }
           if (baseSec !== undefined) {
-            const spanDuration = (ev.endSec != null && ev.startSec != null) ? Math.max(1, ev.endSec - ev.startSec) : 1;
+            const eventStartSec = baseSec + (ev.startSec !== undefined ? ev.startSec : (ev.sec || 0));
+            const eventEndSec = baseSec + (ev.endSec !== undefined ? ev.endSec : ((ev.sec || 0) + 1));
+            const spanDuration = Math.max(1, eventEndSec - eventStartSec);
             rawEvents.push({
               ...ev,
-              secondsFromMidnight: baseSec + (ev.sec || 0),
+              startSec: eventStartSec,
+              endSec: eventEndSec,
+              secondsFromMidnight: eventStartSec,
               spanDuration: spanDuration
             });
           }
         }
 
-        rawEvents.sort((a, b) => a.secondsFromMidnight - b.secondsFromMidnight);
+        rawEvents.sort((a, b) => a.startSec - b.startSec);
 
-        // Merge contiguous events (gap <= 5s) into event spans
-        // This drops DOM element count from ~10,000+ down to ~30-100 real incident spans
+        // Merge contiguous events (gap <= 3s) ONLY when category sets match identically.
+        // This prevents continuous background vehicle detections from swallowing brief person/animal incidents into 20-minute blobs.
         const mergedEventSpans = [];
         let currentEventSpan = null;
 
         for (let i = 0; i < rawEvents.length; i++) {
           const ev = rawEvents[i];
-          const evSec = ev.secondsFromMidnight;
-          const evEnd = evSec + (ev.spanDuration || 1);
+          const evSec = ev.startSec;
+          const evEnd = ev.endSec;
+          const evCats = Array.isArray(ev.categories) && ev.categories.length > 0
+            ? ev.categories
+            : (ev.classes && Object.keys(ev.classes).length > 0 ? Object.keys(ev.classes) : ['other']);
+
           if (!currentEventSpan) {
             currentEventSpan = {
               startSec: evSec,
               endSec: evEnd,
               secondsFromMidnight: evSec,
-              categories: new Set(ev.categories || []),
+              categories: [...evCats],
               classes: { ...(ev.classes || {}) },
               count: ev.count || 1
             };
-          } else if (evSec <= currentEventSpan.endSec + 5) {
+          } else if (
+            evSec <= currentEventSpan.endSec + 3 &&
+            areCategoriesEqual(currentEventSpan.categories, evCats)
+          ) {
             currentEventSpan.endSec = Math.max(currentEventSpan.endSec, evEnd);
             currentEventSpan.count += (ev.count || 1);
-            (ev.categories || []).forEach(c => currentEventSpan.categories.add(c));
             for (const [cls, conf] of Object.entries(ev.classes || {})) {
               currentEventSpan.classes[cls] = Math.max(currentEventSpan.classes[cls] || 0, conf);
             }
           } else {
-            mergedEventSpans.push({
-              ...currentEventSpan,
-              categories: Array.from(currentEventSpan.categories)
-            });
+            mergedEventSpans.push(currentEventSpan);
             currentEventSpan = {
               startSec: evSec,
               endSec: evEnd,
               secondsFromMidnight: evSec,
-              categories: new Set(ev.categories || []),
+              categories: [...evCats],
               classes: { ...(ev.classes || {}) },
               count: ev.count || 1
             };
@@ -608,10 +636,7 @@ async function loginAsGuest() {
         }
 
         if (currentEventSpan) {
-          mergedEventSpans.push({
-            ...currentEventSpan,
-            categories: Array.from(currentEventSpan.categories)
-          });
+          mergedEventSpans.push(currentEventSpan);
         }
 
         nvrDetectionEvents = mergedEventSpans;
@@ -774,7 +799,7 @@ async function loginAsGuest() {
       // Render AI Detection Event Markers as merged spans (drops 10,000+ DOM nodes down to ~50 spans)
       nvrDetectionEvents.forEach(span => {
         const leftPx = (span.startSec / 86400) * trackWidth;
-        const widthPx = Math.max(((span.endSec - span.startSec) / 86400) * trackWidth, 4); // Minimum 4px visible width
+        const widthPx = Math.max(((span.endSec - span.startSec) / 86400) * trackWidth, 5); // Minimum 5px visible width
 
         const marker = document.createElement('div');
         marker.className = 'nvr-event-marker';
@@ -782,6 +807,9 @@ async function loginAsGuest() {
         marker.style.width = `${widthPx}px`;
         marker.style.background = getMultiCategoryGradient(span.categories);
         marker.dataset.seekSec = span.startSec;
+
+        const isIncident = (span.categories || []).some(c => c === 'person' || c === 'animal') || (span.categories && span.categories.length > 1);
+        marker.style.zIndex = isIncident ? '7' : '5';
 
         const startH = Math.floor(span.startSec / 3600);
         const startM = Math.floor((span.startSec % 3600) / 60);
@@ -796,7 +824,7 @@ async function loginAsGuest() {
           .map(([cls, conf]) => `${CATEGORY_ICONS[cls] || '⚡'} ${cls} (${Math.round(conf * 100)}%)`)
           .join(' · ');
 
-        marker.title = `🔔 [${timeStr}] ${classList || (span.categories || []).join(', ')} (${span.count} deteksi - Klik untuk memutar)`;
+        marker.title = `🔔 [${timeStr}] ${classList || (span.categories || []).map(c => `${CATEGORY_ICONS[c] || '⚡'} ${c}`).join(', ')} (${span.count} deteksi - Klik untuk memutar)`;
 
         frag.appendChild(marker);
       });
@@ -1038,14 +1066,15 @@ async function loginAsGuest() {
 }
 
   function parseRecordingTimestamp(filename) {
-    const match = filename.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})/);
+    const match = filename.match(/(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})(?:-(\d{2}))?/);
     if (!match) return null;
     const year = Number(match[1]);
     const month = Number(match[2]) - 1;
     const day = Number(match[3]);
     const hour = Number(match[4]);
     const minute = Number(match[5]);
-    return new Date(year, month, day, hour, minute).getTime();
+    const second = match[6] ? Number(match[6]) : 0;
+    return new Date(year, month, day, hour, minute, second).getTime();
   }
 
   function openJumpModal() {

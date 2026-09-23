@@ -793,57 +793,84 @@ app.get('/api/events/:cam', requireAdminOrSuperadmin, async (req, res) => {
                                     };
                                 }
                                 if (Array.isArray(content.events) && content.events.length > 0) {
-                                    // Coalesce contiguous seconds (gap <= 5s) per video on backend
-                                    let currentSpan = null;
-                                    for (let j = 0; j < content.events.length; j++) {
-                                        const ev = content.events[j];
-                                        const sec = ev.sec || 0;
-                                        if (!currentSpan) {
-                                            currentSpan = {
-                                                video: videoName,
-                                                startSec: sec,
-                                                endSec: sec + 1,
-                                                categories: new Set(ev.categories || []),
-                                                classes: { ...(ev.classes || {}) },
-                                                count: 1
-                                            };
-                                        } else if (sec <= currentSpan.endSec + 5) {
-                                            currentSpan.endSec = Math.max(currentSpan.endSec, sec + 1);
-                                            currentSpan.count++;
-                                            (ev.categories || []).forEach(c => currentSpan.categories.add(c));
-                                            for (const [cls, conf] of Object.entries(ev.classes || {})) {
-                                                currentSpan.classes[cls] = Math.max(currentSpan.classes[cls] || 0, conf);
+                                    // Extract category intervals with sub-video precision
+                                    // Prevents continuous detections (e.g. parked car) from swallowing brief incidents (person/animal)
+                                    const allCats = new Set();
+                                    const catSpans = {};
+                                    const PRIORITY_ORDER = ['person', 'animal', 'bicycle', 'motorcycle', 'vehicle', 'other'];
+
+                                    content.events.forEach(e => {
+                                        const cats = Array.isArray(e.categories) && e.categories.length > 0 ? e.categories : ['other'];
+                                        cats.forEach(c => allCats.add(c));
+                                    });
+
+                                    allCats.forEach(cat => {
+                                        const matching = content.events.filter(e => (e.categories || []).includes(cat) || (!e.categories && cat === 'other'));
+                                        const spans = [];
+                                        let cur = null;
+                                        matching.forEach(m => {
+                                            const sec = m.sec || 0;
+                                            if (!cur) {
+                                                cur = { startSec: sec, endSec: sec + 1, classes: { ...(m.classes || {}) }, count: 1 };
+                                            } else if (sec <= cur.endSec + 3) {
+                                                cur.endSec = Math.max(cur.endSec, sec + 1);
+                                                cur.count++;
+                                                for (const [cls, conf] of Object.entries(m.classes || {})) {
+                                                    cur.classes[cls] = Math.max(cur.classes[cls] || 0, conf);
+                                                }
+                                            } else {
+                                                spans.push(cur);
+                                                cur = { startSec: sec, endSec: sec + 1, classes: { ...(m.classes || {}) }, count: 1 };
                                             }
-                                        } else {
-                                            events.push({
-                                                video: currentSpan.video,
-                                                startSec: currentSpan.startSec,
-                                                endSec: currentSpan.endSec,
-                                                sec: currentSpan.startSec,
-                                                categories: Array.from(currentSpan.categories),
-                                                classes: currentSpan.classes,
-                                                count: currentSpan.count
-                                            });
-                                            currentSpan = {
-                                                video: videoName,
-                                                startSec: sec,
-                                                endSec: sec + 1,
-                                                categories: new Set(ev.categories || []),
-                                                classes: { ...(ev.classes || {}) },
-                                                count: 1
-                                            };
-                                        }
-                                    }
-                                    if (currentSpan) {
-                                        events.push({
-                                            video: currentSpan.video,
-                                            startSec: currentSpan.startSec,
-                                            endSec: currentSpan.endSec,
-                                            sec: currentSpan.startSec,
-                                            categories: Array.from(currentSpan.categories),
-                                            classes: currentSpan.classes,
-                                            count: currentSpan.count
                                         });
+                                        if (cur) spans.push(cur);
+                                        catSpans[cat] = spans;
+                                    });
+
+                                    // Build change points
+                                    const changePoints = new Set();
+                                    Object.values(catSpans).flat().forEach(s => {
+                                        changePoints.add(s.startSec);
+                                        changePoints.add(s.endSec);
+                                    });
+                                    const sortedPoints = Array.from(changePoints).sort((a, b) => a - b);
+
+                                    for (let ptIdx = 0; ptIdx < sortedPoints.length - 1; ptIdx++) {
+                                        const p1 = sortedPoints[ptIdx];
+                                        const p2 = sortedPoints[ptIdx + 1];
+                                        if (p2 <= p1) continue;
+                                        const mid = (p1 + p2) / 2;
+                                        const activeCats = [];
+                                        const classes = {};
+                                        let count = 0;
+
+                                        allCats.forEach(cat => {
+                                            const matchSpan = catSpans[cat].find(s => mid >= s.startSec && mid < s.endSec);
+                                            if (matchSpan) {
+                                                activeCats.push(cat);
+                                                count += matchSpan.count;
+                                                for (const [cls, conf] of Object.entries(matchSpan.classes)) {
+                                                    classes[cls] = Math.max(classes[cls] || 0, conf);
+                                                }
+                                            }
+                                        });
+
+                                        if (activeCats.length > 0) {
+                                            activeCats.sort((a, b) => {
+                                                const idxA = PRIORITY_ORDER.indexOf(a);
+                                                const idxB = PRIORITY_ORDER.indexOf(b);
+                                                return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+                                            });
+                                            events.push({
+                                                video: videoName,
+                                                startSec: p1,
+                                                endSec: p2,
+                                                sec: p1,
+                                                categories: activeCats,
+                                                classes: classes,
+                                                count: count
+                                            });
+                                        }
                                     }
                                 }
                             } catch (parseErr) {

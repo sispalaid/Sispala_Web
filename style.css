@@ -1769,6 +1769,26 @@ label {
   box-shadow: 0 0 5px rgba(255, 64, 129, 0.6);
 }
 
+.nvr-event-marker.marker-bicycle {
+  background: linear-gradient(180deg, #00e5ff, #00b0ff);
+  box-shadow: 0 0 5px rgba(0, 229, 255, 0.6);
+}
+
+.nvr-event-marker.marker-motorcycle {
+  background: linear-gradient(180deg, #ffea00, #fbc02d);
+  box-shadow: 0 0 5px rgba(255, 234, 0, 0.6);
+}
+
+.nvr-event-marker.marker-bus {
+  background: linear-gradient(180deg, #00b0ff, #0288d1);
+  box-shadow: 0 0 5px rgba(0, 176, 255, 0.6);
+}
+
+.nvr-event-marker.marker-truck {
+  background: linear-gradient(180deg, #76ff03, #64dd17);
+  box-shadow: 0 0 5px rgba(118, 255, 3, 0.6);
+}
+
 /* Timeline Legend */
 .nvr-legend-container {
   display: flex;
@@ -1868,6 +1888,26 @@ label {
 .file-item-badge.badge-other {
   background: #ff4081;
   color: #fff;
+}
+
+.file-item-badge.badge-bicycle {
+  background: #00e5ff;
+  color: #000;
+}
+
+.file-item-badge.badge-motorcycle {
+  background: #ffea00;
+  color: #000;
+}
+
+.file-item-badge.badge-bus {
+  background: #00b0ff;
+  color: #000;
+}
+
+.file-item-badge.badge-truck {
+  background: #76ff03;
+  color: #000;
 }
 
 /* Styling date input consistently with NVR layout select dropdowns */
