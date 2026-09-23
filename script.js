@@ -530,9 +530,11 @@ async function loginAsGuest() {
           const ev = rawList[i];
           const baseSec = fileTimeMap.get(ev.video);
           if (baseSec !== undefined) {
+            const spanDuration = (ev.endSec != null && ev.startSec != null) ? Math.max(1, ev.endSec - ev.startSec) : 1;
             rawEvents.push({
               ...ev,
-              secondsFromMidnight: baseSec + (ev.sec || 0)
+              secondsFromMidnight: baseSec + (ev.sec || 0),
+              spanDuration: spanDuration
             });
           }
         }
@@ -547,18 +549,19 @@ async function loginAsGuest() {
         for (let i = 0; i < rawEvents.length; i++) {
           const ev = rawEvents[i];
           const evSec = ev.secondsFromMidnight;
+          const evEnd = evSec + (ev.spanDuration || 1);
           if (!currentEventSpan) {
             currentEventSpan = {
               startSec: evSec,
-              endSec: evSec + 1,
+              endSec: evEnd,
               secondsFromMidnight: evSec,
               categories: new Set(ev.categories || []),
               classes: { ...(ev.classes || {}) },
-              count: 1
+              count: ev.count || 1
             };
           } else if (evSec <= currentEventSpan.endSec + 5) {
-            currentEventSpan.endSec = Math.max(currentEventSpan.endSec, evSec + 1);
-            currentEventSpan.count++;
+            currentEventSpan.endSec = Math.max(currentEventSpan.endSec, evEnd);
+            currentEventSpan.count += (ev.count || 1);
             (ev.categories || []).forEach(c => currentEventSpan.categories.add(c));
             for (const [cls, conf] of Object.entries(ev.classes || {})) {
               currentEventSpan.classes[cls] = Math.max(currentEventSpan.classes[cls] || 0, conf);
@@ -570,11 +573,11 @@ async function loginAsGuest() {
             });
             currentEventSpan = {
               startSec: evSec,
-              endSec: evSec + 1,
+              endSec: evEnd,
               secondsFromMidnight: evSec,
               categories: new Set(ev.categories || []),
               classes: { ...(ev.classes || {}) },
-              count: 1
+              count: ev.count || 1
             };
           }
         }
@@ -847,6 +850,9 @@ async function loginAsGuest() {
 
   function updatePlayhead(timestampMs) {
     if (isDraggingTimeline) return;
+    if (isPendingSeek && Math.abs(timestampMs - pendingSeekTargetMs) > 1500) {
+      isPendingSeek = false;
+    }
     if (isPendingSeek && timestampMs !== pendingSeekTargetMs) return;
 
     const badge = document.getElementById('nvrPlayheadBadge');
@@ -951,6 +957,9 @@ async function loginAsGuest() {
       } else {
         historyPlayer.addEventListener('loadedmetadata', applySeekAndPlay, { once: true });
         historyPlayer.addEventListener('canplay', applySeekAndPlay, { once: true });
+        setTimeout(() => {
+          if (isPendingSeek) applySeekAndPlay();
+        }, 800);
       }
     } else {
       if (offsetSec >= 0 && isFinite(offsetSec)) {
@@ -958,14 +967,15 @@ async function loginAsGuest() {
         pendingSeekTargetMs = selectedRecording.timestampMs + (offsetSec * 1000);
         updatePlayhead(pendingSeekTargetMs);
         try {
-          if (historyPlayer.seekable && historyPlayer.seekable.length > 0) {
-            historyPlayer.currentTime = offsetSec;
-          }
+          historyPlayer.currentTime = offsetSec;
         } catch (e) {}
         historyPlayer.playbackRate = currentPlaybackSpeed;
-        historyPlayer.play().catch(() => {
-          isPendingSeek = false;
-        });
+        historyPlayer.play()
+          .catch(() => {})
+          .finally(() => {
+            isPendingSeek = false;
+          });
+        setTimeout(() => { isPendingSeek = false; }, 400);
       }
     }
   }
@@ -2425,6 +2435,9 @@ async function actionDeleteAccount(username) {
     } else {
       resumeLiveStreamsAfterPlayback();
     }
+  });
+  historyPlayer.addEventListener('seeked', () => {
+    isPendingSeek = false;
   });
   historyPlayer.addEventListener('ratechange', () => {
     if (historyPlayer.playbackRate !== currentPlaybackSpeed && !historyPlayer.paused) {
