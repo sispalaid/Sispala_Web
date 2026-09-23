@@ -22,6 +22,9 @@ const streams = [
   let lastUserActivity = Date.now();
   let storageStatsIntervalId = null;
   let superadminLogsIntervalId = null;
+  let nvrDetectionAutoRefreshIntervalId = null;
+  let cachedUserLogs = [];
+  let currentLogSort = { column: 'timestamp', order: 'desc' };
 
   // Track real human activity to reset the idle countdown
   ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'].forEach(evt => {
@@ -44,6 +47,7 @@ const streams = [
     // Stop polling intervals immediately
     if (storageStatsIntervalId) { clearInterval(storageStatsIntervalId); storageStatsIntervalId = null; }
     if (superadminLogsIntervalId) { clearInterval(superadminLogsIntervalId); superadminLogsIntervalId = null; }
+    if (nvrDetectionAutoRefreshIntervalId) { clearInterval(nvrDetectionAutoRefreshIntervalId); nvrDetectionAutoRefreshIntervalId = null; }
     if (typeof logsIntervalId !== 'undefined' && logsIntervalId) { clearInterval(logsIntervalId); logsIntervalId = null; }
 
     // Pause active video playback and live streams
@@ -391,7 +395,30 @@ async function loginAsGuest() {
     }
 }
 
-  async function fetchRecordings() {
+  // Helper to dynamically add, update, or remove detection badges on a file item
+  function updateFileItemBadge(item, summaryObj) {
+    if (!item) return;
+    let badgeWrap = item.querySelector('.file-item-badge-wrap');
+    if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
+      if (!badgeWrap) {
+        badgeWrap = document.createElement('span');
+        badgeWrap.className = 'file-item-badge-wrap';
+        item.appendChild(badgeWrap);
+      } else {
+        badgeWrap.innerHTML = '';
+      }
+      for (const [cat, count] of Object.entries(summaryObj.summary)) {
+        const badge = document.createElement('span');
+        badge.className = `file-item-badge badge-${cat}`;
+        badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
+        badgeWrap.appendChild(badge);
+      }
+    } else if (badgeWrap) {
+      badgeWrap.remove();
+    }
+  }
+
+  async function fetchRecordings(forceFresh = false) {
     if (currentUserRole !== 'admin' && currentUserRole !== 'superadmin') {
       return;
     }
@@ -401,6 +428,7 @@ async function loginAsGuest() {
     if (selectedRecording && selectedRecording.cam !== cam) {
       selectedRecording = null;
       playbackIndex = -1;
+      nvrFileSummaries = {};
     }
 
     try {
@@ -446,7 +474,8 @@ async function loginAsGuest() {
         return `${yyyy}-${mm}-${dd}` === selectedNVRDate;
       });
 
-      // Skip drawNVRTimeline() here — loadDetectionEvents() will call it after events load
+      // Fetch AI detection events for this date before rendering file list so all badges render immediately
+      await loadDetectionEvents(cam, selectedNVRDate, forceFresh);
 
       // Render file list using DocumentFragment
       fileListDiv.innerHTML = '';
@@ -464,15 +493,7 @@ async function loginAsGuest() {
 
           const summaryObj = nvrFileSummaries[file.name];
           if (summaryObj && summaryObj.summary && Object.keys(summaryObj.summary).length > 0) {
-            const badgeWrap = document.createElement('span');
-            badgeWrap.className = 'file-item-badge-wrap';
-            for (const [cat, count] of Object.entries(summaryObj.summary)) {
-              const badge = document.createElement('span');
-              badge.className = `file-item-badge badge-${cat}`;
-              badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
-              badgeWrap.appendChild(badge);
-            }
-            item.appendChild(badgeWrap);
+            updateFileItemBadge(item, summaryObj);
           }
 
           if (selectedRecording && selectedRecording.name === file.name) {
@@ -494,9 +515,6 @@ async function loginAsGuest() {
           playingNowSpan.style.color = '#9fd9ff';
         }
       }
-
-      // Fetch AI detection events asynchronously in background without blocking UI
-      loadDetectionEvents(cam, selectedNVRDate);
     } catch (err) {
       console.error(err);
       fileListDiv.innerHTML = '<div style="padding:10px; color:red;">Gagal memuat rekaman.</div>';
@@ -504,10 +522,11 @@ async function loginAsGuest() {
   }
 
   // Helper: Asynchronously fetch and render detection events
-  async function loadDetectionEvents(cam, targetDate) {
+  async function loadDetectionEvents(cam, targetDate, forceFresh = false) {
     if (!targetDate) return;
     try {
-      const evRes = await fetch(`/api/events/${cam}?date=${targetDate}`);
+      const freshQuery = forceFresh ? '&fresh=1' : '';
+      const evRes = await fetch(`/api/events/${cam}?date=${targetDate}${freshQuery}`);
       if (!checkAuthStatus(evRes)) return;
       const evData = await evRes.json();
       const currentCam = document.getElementById('camSelect').value;
@@ -527,8 +546,14 @@ async function loginAsGuest() {
         const rawEvents = [];
         const rawList = evData.events || [];
         for (let i = 0; i < rawList.length; i++) {
-          const ev = rawList[i];
-          const baseSec = fileTimeMap.get(ev.video);
+          let baseSec = fileTimeMap.get(ev.video);
+          if (baseSec === undefined && ev.video) {
+            const ts = parseRecordingTimestamp(ev.video);
+            if (ts !== null) {
+              const d = new Date(ts);
+              baseSec = d.getHours() * 3600 + d.getMinutes() * 60;
+            }
+          }
           if (baseSec !== undefined) {
             const spanDuration = (ev.endSec != null && ev.startSec != null) ? Math.max(1, ev.endSec - ev.startSec) : 1;
             rawEvents.push({
@@ -598,22 +623,14 @@ async function loginAsGuest() {
       // Update timeline markers
       drawNVRTimeline();
 
-      // Only update file items that actually have summaries (avoids scanning 1,440 DOM nodes)
-      for (const [fname, summaryObj] of Object.entries(nvrFileSummaries)) {
-        if (!summaryObj || !summaryObj.summary || Object.keys(summaryObj.summary).length === 0) continue;
-        const item = fileListDiv.querySelector(`[data-filename="${fname}"]`);
-        if (item && !item.querySelector('.file-item-badge-wrap')) {
-          const badgeWrap = document.createElement('span');
-          badgeWrap.className = 'file-item-badge-wrap';
-          for (const [cat, count] of Object.entries(summaryObj.summary)) {
-            const badge = document.createElement('span');
-            badge.className = `file-item-badge badge-${cat}`;
-            badge.textContent = `${CATEGORY_ICONS[cat] || '⚡'} ${count}`;
-            badgeWrap.appendChild(badge);
-          }
-          item.appendChild(badgeWrap);
+      // Dynamically update or create detection badges for all items in the current file list
+      const fileItems = fileListDiv.querySelectorAll('.file-item');
+      fileItems.forEach(item => {
+        const fname = item.dataset.filename;
+        if (fname) {
+          updateFileItemBadge(item, nvrFileSummaries[fname]);
         }
-      }
+      });
     } catch (err) {
       console.warn('Gagal memuat data event deteksi:', err);
     }
@@ -1361,12 +1378,16 @@ async function loginAsGuest() {
       
       closeJumpModal();
 
+      const cam = document.getElementById('camSelect').value;
+
       if (prevDate !== selectedNVRDate) {
-        fetchRecordings().then(() => {
+        nvrFileSummaries = {}; // Bersihkan cache summary tanggal sebelumnya
+        fetchRecordings(true).then(() => {
           playFileAtOffset(closest.name, offsetSec);
         });
       } else {
         playFileAtOffset(closest.name, offsetSec);
+        loadDetectionEvents(cam, selectedNVRDate); // Pastikan badge & event terbaru termuat pada lompatan jam
       }
     } else {
       const hint = document.getElementById('jump-hint');
@@ -2012,6 +2033,7 @@ async function actionDeleteAccount(username) {
       lastUserActivity = Date.now();
       if (storageStatsIntervalId) { clearInterval(storageStatsIntervalId); storageStatsIntervalId = null; }
       if (superadminLogsIntervalId) { clearInterval(superadminLogsIntervalId); superadminLogsIntervalId = null; }
+      if (nvrDetectionAutoRefreshIntervalId) { clearInterval(nvrDetectionAutoRefreshIntervalId); nvrDetectionAutoRefreshIntervalId = null; }
 
       if (role === 'guest') {
           if (alarmContainer) alarmContainer.style.display = 'none';
@@ -2030,6 +2052,13 @@ async function actionDeleteAccount(username) {
           if (cleanupBlock) cleanupBlock.style.display = 'none';
           toggleAutoRefreshLogs(false);
           storageStatsIntervalId = setInterval(fetchStorageStats, 20000);
+          nvrDetectionAutoRefreshIntervalId = setInterval(() => {
+            const camSelect = document.getElementById('camSelect');
+            const cam = camSelect ? camSelect.value : null;
+            if (cam && selectedNVRDate) {
+              loadDetectionEvents(cam, selectedNVRDate);
+            }
+          }, 15000);
           setTimeout(() => {
             fetchRecordings();
             fetchStorageStats();
@@ -2043,6 +2072,13 @@ async function actionDeleteAccount(username) {
           if (cleanupBlock) cleanupBlock.style.display = 'block';
 
           storageStatsIntervalId = setInterval(fetchStorageStats, 20000);
+          nvrDetectionAutoRefreshIntervalId = setInterval(() => {
+            const camSelect = document.getElementById('camSelect');
+            const cam = camSelect ? camSelect.value : null;
+            if (cam && selectedNVRDate) {
+              loadDetectionEvents(cam, selectedNVRDate);
+            }
+          }, 15000);
           superadminLogsIntervalId = setInterval(() => {
             const panel = document.getElementById('superadmin-panel');
             if (currentUserRole === 'superadmin' && panel && panel.style.display !== 'none' && panel.offsetParent !== null) {
@@ -2070,6 +2106,112 @@ async function actionDeleteAccount(username) {
       }
   }
 
+  function parseLogTimestampMs(ts) {
+    if (!ts) return 0;
+    const str = String(ts).trim();
+    // Match "19/6/2026, 20.39.47" or "19/06/2026, 20:39:47" (d/m/Y, H:M:S)
+    const m = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})[,\s]+(\d{1,2})[.:](\d{1,2})(?:[.:](\d{1,2}))?/);
+    if (m) {
+      const day = parseInt(m[1], 10);
+      const month = parseInt(m[2], 10) - 1;
+      const year = parseInt(m[3], 10);
+      const hour = parseInt(m[4], 10);
+      const min = parseInt(m[5], 10);
+      const sec = m[6] ? parseInt(m[6], 10) : 0;
+      return new Date(year, month, day, hour, min, sec).getTime();
+    }
+    const parsed = Date.parse(str);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+
+  function sortUserLogs(column) {
+    if (currentLogSort.column === column) {
+      currentLogSort.order = currentLogSort.order === 'asc' ? 'desc' : 'asc';
+    } else {
+      currentLogSort.column = column;
+      currentLogSort.order = column === 'timestamp' ? 'desc' : 'asc';
+    }
+    updateLogSortHeaders();
+    renderUserLogsTable();
+  }
+
+  function updateLogSortHeaders() {
+    const columns = ['timestamp', 'username', 'role', 'action'];
+    columns.forEach(col => {
+      const th = document.getElementById(`th-log-${col}`);
+      const icon = document.getElementById(`sort-icon-${col}`);
+      if (!th || !icon) return;
+      th.classList.remove('sort-asc', 'sort-desc');
+      if (currentLogSort.column === col) {
+        if (currentLogSort.order === 'asc') {
+          th.classList.add('sort-asc');
+          icon.textContent = '▲';
+        } else {
+          th.classList.add('sort-desc');
+          icon.textContent = '▼';
+        }
+      } else {
+        icon.textContent = '↕';
+      }
+    });
+  }
+
+  function renderUserLogsTable() {
+    const tbody = document.getElementById('log-table-body');
+    if (!tbody) return;
+
+    if (!Array.isArray(cachedUserLogs) || cachedUserLogs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#aaa;">Belum ada log aktivitas.</td></tr>';
+      return;
+    }
+
+    const { column, order } = currentLogSort;
+    const factor = order === 'asc' ? 1 : -1;
+
+    const sortedLogs = [...cachedUserLogs].sort((a, b) => {
+      if (column === 'timestamp') {
+        const tA = parseLogTimestampMs(a.timestamp);
+        const tB = parseLogTimestampMs(b.timestamp);
+        return (tA - tB) * factor;
+      }
+      const valA = String(a[column] || '').toLowerCase();
+      const valB = String(b[column] || '').toLowerCase();
+      return valA.localeCompare(valB) * factor;
+    });
+
+    const actionBadgeMap = {
+      'LOGIN': 'badge-login',
+      'LOGOUT': 'badge-logout',
+      'ALARM': 'badge-alarm',
+      'SIRINE': 'badge-sirine',
+      'AUDIO_PLAY': 'badge-play',
+      'AUDIO_PAUSE': 'badge-pause',
+      'AUDIO_RESUME': 'badge-resume',
+      'AUDIO_STOP': 'badge-stop',
+      'AUDIO_UPLOAD': 'badge-upload',
+      'AUDIO_DELETE': 'badge-delete',
+      'AUDIO_CHANNEL': 'badge-config',
+      'AUDIO_CONFIG_UPDATE': 'badge-config',
+      'CREATE_ACCOUNT': 'badge-config',
+      'MODIFY_ACCOUNT': 'badge-config',
+      'DELETE_ACCOUNT': 'badge-delete'
+    };
+
+    const rowsHtml = sortedLogs.map(log => {
+      const actionKey = (log.action || '').split(':')[0].trim();
+      const badgeClass = actionBadgeMap[actionKey] || 'badge-other';
+      return `
+        <tr>
+          <td style="color:#aaa">${log.timestamp || '-'}</td>
+          <td style="font-weight:600; color:#fff">${log.username || '-'}</td>
+          <td><span style="color:var(--accent-2)">${log.role || '-'}</span></td>
+          <td><span class="${badgeClass}">${log.action || '-'}</span></td>
+        </tr>
+      `;
+    }).join('');
+    tbody.innerHTML = rowsHtml;
+  }
+
   async function fetchSuperadminLogs() {
     try {
         const res = await fetch('/api/logs');
@@ -2079,45 +2221,9 @@ async function actionDeleteAccount(username) {
         if (!tbody) return;
         
         if (data.success && Array.isArray(data.logs)) {
-            if (data.logs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#aaa;">Belum ada log aktivitas.</td></tr>';
-                return;
-            }
-            
-            const reversedLogs = data.logs;
-            
-            const actionBadgeMap = {
-                'LOGIN': 'badge-login',
-                'LOGOUT': 'badge-logout',
-                'ALARM': 'badge-alarm',
-                'SIRINE': 'badge-sirine',
-                'AUDIO_PLAY': 'badge-play',
-                'AUDIO_PAUSE': 'badge-pause',
-                'AUDIO_RESUME': 'badge-resume',
-                'AUDIO_STOP': 'badge-stop',
-                'AUDIO_UPLOAD': 'badge-upload',
-                'AUDIO_DELETE': 'badge-delete',
-                'AUDIO_CHANNEL': 'badge-config',
-                'AUDIO_CONFIG_UPDATE': 'badge-config',
-                'CREATE_ACCOUNT': 'badge-config',
-                'MODIFY_ACCOUNT': 'badge-config',
-                'DELETE_ACCOUNT': 'badge-delete'
-            };
-
-            // Single atomic pass: map array to HTML string (O(N) instead of O(N^2))
-            const rowsHtml = reversedLogs.map(log => {
-                const actionKey = (log.action || '').split(':')[0].trim();
-                const badgeClass = actionBadgeMap[actionKey] || 'badge-other';
-                return `
-                    <tr>
-                        <td style="color:#aaa">${log.timestamp || '-'}</td>
-                        <td style="font-weight:600; color:#fff">${log.username || '-'}</td>
-                        <td><span style="color:var(--accent-2)">${log.role || '-'}</span></td>
-                        <td><span class="${badgeClass}">${log.action || '-'}</span></td>
-                    </tr>
-                `;
-            }).join('');
-            tbody.innerHTML = rowsHtml;
+            cachedUserLogs = data.logs;
+            updateLogSortHeaders();
+            renderUserLogsTable();
         } else {
             tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:red;">Gagal memuat log data.</td></tr>';
         }

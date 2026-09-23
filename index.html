@@ -177,7 +177,7 @@
         <option value="cam4">CAM 04 - Pak RT</option>
       </select>
 
-      <button class="btn-refresh" onclick="fetchRecordings()">Refresh Daftar File</button>
+      <button class="btn-refresh" onclick="fetchRecordings(true)">Refresh Daftar File</button>
       
       <div class="file-list" id="fileList">
         <div style="padding:10px; color: var(--ink-2);">Memuat rekaman...</div>
@@ -318,10 +318,18 @@
         <table class="log-table" style="width: 100%;">
           <thead>
             <tr>
-              <th>Timestamp</th>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Action</th>
+              <th class="sortable sort-desc" id="th-log-timestamp" onclick="sortUserLogs('timestamp')" title="Klik untuk mengurutkan Waktu">
+                Timestamp <span class="sort-icon" id="sort-icon-timestamp">▼</span>
+              </th>
+              <th class="sortable" id="th-log-username" onclick="sortUserLogs('username')" title="Klik untuk mengurutkan Username">
+                Username <span class="sort-icon" id="sort-icon-username">↕</span>
+              </th>
+              <th class="sortable" id="th-log-role" onclick="sortUserLogs('role')" title="Klik untuk mengurutkan Role">
+                Role <span class="sort-icon" id="sort-icon-role">↕</span>
+              </th>
+              <th class="sortable" id="th-log-action" onclick="sortUserLogs('action')" title="Klik untuk mengurutkan Action">
+                Action <span class="sort-icon" id="sort-icon-action">↕</span>
+              </th>
             </tr>
           </thead>
           <tbody id="log-table-body">

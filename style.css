@@ -462,6 +462,28 @@ a:hover { color: var(--accent-1-dark); text-decoration: underline; }
 [data-theme="dark"] .log-table th {
   color: #cfe7ff;
 }
+.log-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.log-table th.sortable:hover {
+  background: var(--accent-1-soft, rgba(0, 150, 255, 0.12));
+  color: var(--accent-1);
+}
+.log-table th .sort-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 10px;
+  opacity: 0.45;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+.log-table th.sort-asc .sort-icon,
+.log-table th.sort-desc .sort-icon {
+  opacity: 1;
+  color: var(--accent-1);
+  font-weight: bold;
+}
 .log-table tr:hover td { background: var(--accent-1-soft); }
 .log-table td {
   color: var(--ink-2);

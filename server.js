@@ -516,8 +516,18 @@ app.get('/api/logs', (req, res) => {
             logs = [];
         }
     }
-    // Mengembalikan log terbalik agar aktivitas terbaru berada di paling atas
-    res.json({ success: true, logs: logs.reverse() });
+    // Helper untuk mengekstrak nilai numerik timestamp agar terurut akurat dari terbaru ke terlama (latest first)
+    const getTsVal = (t) => {
+        if (!t) return 0;
+        const m = String(t).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})[,\s]+(\d{1,2})[.:](\d{1,2})(?:[.:](\d{1,2}))?/);
+        if (m) {
+            return Number(`${m[3]}${String(m[2]).padStart(2, '0')}${String(m[1]).padStart(2, '0')}${String(m[4]).padStart(2, '0')}${String(m[5]).padStart(2, '0')}${String(m[6] || '0').padStart(2, '0')}`);
+        }
+        const parsed = Date.parse(t);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+    logs.sort((a, b) => getTsVal(b.timestamp) - getTsVal(a.timestamp));
+    res.json({ success: true, logs });
 });
 
 // Helper internal untuk memfilter baris log berdasarkan rentang tanggal sejak/sampai
@@ -736,8 +746,12 @@ app.get('/api/events/:cam', requireAdminOrSuperadmin, async (req, res) => {
     const targetDate = req.query.date; // Format: YYYY-MM-DD
     const cacheKey = `${cam}_${targetDate || 'all'}`;
     const now = Date.now();
+    const forceFresh = req.query.fresh === '1';
+    const todayStr = new Date().toLocaleString("en-CA", { timeZone: "Asia/Jakarta" }).slice(0, 10);
+    const isToday = !targetDate || targetDate === todayStr;
+    const ttl = isToday ? 5000 : EVENTS_CACHE_TTL_MS; // 5s untuk hari ini (aktif merekam & deteksi berjalan), 60s untuk arsip riwayat lampau
 
-    if (eventsCache.has(cacheKey)) {
+    if (!forceFresh && eventsCache.has(cacheKey)) {
         const cached = eventsCache.get(cacheKey);
         if (now < cached.expiresAt) {
             return res.json(cached.data);
@@ -856,7 +870,7 @@ app.get('/api/events/:cam', requireAdminOrSuperadmin, async (req, res) => {
             const oldestKey = eventsCache.keys().next().value;
             eventsCache.delete(oldestKey);
         }
-        eventsCache.set(cacheKey, { expiresAt: Date.now() + EVENTS_CACHE_TTL_MS, data: responsePayload });
+        eventsCache.set(cacheKey, { expiresAt: Date.now() + ttl, data: responsePayload });
 
         res.json(responsePayload);
     } catch (routeErr) {
